@@ -2,7 +2,7 @@
 
 > An end-to-end data analytics project using **Python & Pandas** to clean, explore, analyse and visualise 18 months of e-commerce order data, and to turn the results into evidence-based business recommendations.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue) ![Pandas](https://img.shields.io/badge/Pandas-2.x-150458) ![License](https://img.shields.io/badge/License-MIT-green)
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue) ![Pandas](https://img.shields.io/badge/Pandas-2.x-150458) ![License](https://img.shields.io/badge/License-MIT-green) ![CI](https://github.com/<your-username>/ecommerce-customer-analytics/actions/workflows/ci.yml/badge.svg)
 
 ---
 
@@ -43,7 +43,11 @@ ecommerce-customer-analytics/
 │   └── ecommerce_customer_analytics.ipynb    # main analysis (executed, with outputs)
 ├── src/
 │   ├── generate_dataset.py                   # reproducible synthetic data generator
-│   └── data_cleaning.py                      # reusable cleaning pipeline + customer table
+│   ├── data_cleaning.py                      # reusable cleaning pipeline + customer table
+│   └── run_pipeline.py                       # one-command: generate -> clean -> execute notebook
+├── tests/
+│   └── test_data_cleaning.py                 # pytest suite for the cleaning pipeline (14 tests)
+├── .github/workflows/ci.yml                  # GitHub Actions: tests + pipeline on every push
 ├── outputs/
 │   └── figures/                              # 9 charts exported from the notebook
 ├── docs/
@@ -51,6 +55,7 @@ ecommerce-customer-analytics/
 │   ├── project_report.docx                   # written report
 │   └── presentation.pptx                     # slides for the live demo
 ├── README.md
+├── LICENSE
 ├── requirements.txt
 └── .gitignore
 ```
@@ -76,6 +81,12 @@ python src/data_cleaning.py
 
 # 3. Open the notebook
 jupyter notebook notebooks/ecommerce_customer_analytics.ipynb
+
+# Or reproduce everything with one command (generate -> clean -> execute notebook)
+python src/run_pipeline.py
+
+# Run the unit tests
+pytest -q
 ```
 
 The notebook runs top-to-bottom in ~15 seconds (`Kernel → Restart & Run All`) and writes the charts to `outputs/figures/`.
