@@ -2,7 +2,7 @@
 
 > An end-to-end data analytics project using **Python & Pandas** to clean, explore, analyse and visualise 18 months of e-commerce order data, and to turn the results into evidence-based business recommendations.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue) ![Pandas](https://img.shields.io/badge/Pandas-2.x-150458) ![License](https://img.shields.io/badge/License-MIT-green) ![CI](https://github.com/<your-username>/ecommerce-customer-analytics/actions/workflows/ci.yml/badge.svg)
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue) ![Pandas](https://img.shields.io/badge/Pandas-2.x-150458) ![License](https://img.shields.io/badge/License-MIT-green) ![CI](https://github.com/<hinrithisak-eng>/ecommerce-customer-analytics/actions/workflows/ci.yml/badge.svg)
 
 ---
 
@@ -72,7 +72,7 @@ Full field descriptions: [`docs/data_dictionary.md`](docs/data_dictionary.md).
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/<your-username>/ecommerce-customer-analytics.git
+git clone https://github.com/<hinrithisak-eng>/ecommerce-customer-analytics.git
 cd ecommerce-customer-analytics
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
