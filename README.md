@@ -54,7 +54,7 @@ ecommerce-customer-analytics/
 │   ├── data_dictionary.md                    # field-by-field data dictionary
 │   ├── project_report.docx                   # written report
 │   ├── presentation.pptx                     # slides for the live demo
-│   ├── dashboard.html                        # interactive offline dashboard + demo guide (open in a browser)
+│   ├── dashboard.html                        # interactive offline dashboard: 4 tabs, filters, dark mode, demo guide
 │   └── notebook_export.html                  # static HTML export of the executed notebook (no kernel needed)
 ├── README.md
 ├── LICENSE
@@ -136,7 +136,7 @@ The notebook runs top-to-bottom in ~15 seconds (`Kernel → Restart & Run All`) 
 
 ## 10. Live demo script (≈ 10 minutes)
 
-Open `docs/dashboard.html` in any browser — it works offline, has Country / Segment / Category filters that recompute every chart live, and its **Demo guide** tab contains the minute-by-minute script and likely Q&A.
+Open `docs/dashboard.html` in any browser — it works offline with no server or Python running. Four tabs (Overview · Customers & service · Data quality · Findings & demo), Country / Segment / Category filters that recompute every chart, KPI and interpretation sentence live, and a light/dark theme that follows your OS setting. Keyboard: `1`–`4` switch tabs, `D` toggles dark mode, `R` resets filters. The **Findings & demo** tab holds the minute-by-minute script and likely Q&A.
 
 1. Show the repo structure and `README` (1 min).
 2. Run `python src/generate_dataset.py` → show `df.describe()` revealing the bad values (1 min).
