@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>E-commerce Customer Analytics — Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2040%2040%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%2240%22%20height%3D%2240%22%20rx%3D%2210%22%20fill%3D%22url%28%23lg%29%22%2F%3E%3Cpolyline%20points%3D%2211.6%2C19.4%2020%2C14.4%2028.4%2C9.4%22%20fill%3D%22none%22%20stroke%3D%22%231E2761%22%20stroke-opacity%3D%22.26%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3Crect%20x%3D%229%22%20y%3D%2221%22%20width%3D%225.2%22%20height%3D%2210%22%20rx%3D%221.6%22%20fill%3D%22%239DB2F0%22%2F%3E%3Crect%20x%3D%2217.4%22%20y%3D%2216%22%20width%3D%225.2%22%20height%3D%2215%22%20rx%3D%221.6%22%20fill%3D%22%231E2761%22%2F%3E%3Crect%20x%3D%2225.8%22%20y%3D%2211%22%20width%3D%225.2%22%20height%3D%2220%22%20rx%3D%221.6%22%20fill%3D%22%23F59E0B%22%2F%3E%3Ccircle%20cx%3D%2228.4%22%20cy%3D%229.4%22%20r%3D%222.3%22%20fill%3D%22%23F59E0B%22%20stroke%3D%22%23FFFFFF%22%20stroke-width%3D%221.3%22%2F%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22lg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%2240%22%20y2%3D%2240%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20stop-color%3D%22%23FFFFFF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23EDF1FB%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3C%2Fsvg%3E">
 <script>/*!
  * Chart.js v4.4.1
  * https://www.chartjs.org
@@ -40,19 +41,20 @@
   }
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
-  body{margin:0;font-family:Calibri,"Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg);
+  body{margin:0;font-family:Calibri,"Segoe UI",system-ui,sans-serif;font-size:16px;color:var(--ink);background:var(--bg);
        transition:background .35s ease,color .35s ease}
 
   .topbar{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--line);
           box-shadow:0 1px 8px rgba(16,24,48,.06);transition:background .35s,border-color .35s}
   .row1{max-width:1480px;margin:0 auto;padding:14px 28px 0;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
   .brand{display:flex;align-items:center;gap:12px}
-  .mark{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--amber),#F97316);
-        color:#3B2A05;font-family:Cambria,Georgia,serif;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;flex:none}
-  .brand h1{font-family:Cambria,Georgia,serif;font-size:20px;margin:0;color:var(--ink);letter-spacing:.2px}
-  .brand .sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .mark{width:42px;height:42px;flex:none;display:block;border-radius:11px;
+        box-shadow:0 1px 2px rgba(8,12,28,.25),0 3px 8px rgba(8,12,28,.18)}
+  .mark svg{width:42px;height:42px;display:block;border-radius:11px}
+  .brand h1{font-family:Cambria,Georgia,serif;font-size:23px;margin:0;color:var(--ink);letter-spacing:.2px}
+  .brand .sub{font-size:14px;color:var(--muted);margin-top:2px}
   .right{margin-left:auto;display:flex;align-items:center;gap:10px}
-  .pill{font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:4px 11px;white-space:nowrap}
+  .pill{font-size:13px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:4px 11px;white-space:nowrap}
   .icon-btn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--surface2);color:var(--ink);
             cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s,transform .2s,border-color .2s}
   .icon-btn:hover{background:var(--tagBg);transform:translateY(-1px)}
@@ -61,49 +63,49 @@
 
   .row2{max-width:1480px;margin:0 auto;padding:8px 28px 12px;display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
   nav{display:flex;gap:2px;flex-wrap:wrap}
-  nav button{background:none;border:none;border-bottom:3px solid transparent;padding:12px 15px 11px;font-size:14px;font-weight:600;
-             color:var(--muted);cursor:pointer;font-family:inherit;border-radius:8px 8px 0 0;
+  nav button{background:none;border:none;border-bottom:3px solid transparent;padding:13px 17px 12px;font-weight:600;
+             color:var(--muted);cursor:pointer;font-family:inherit;border-radius:8px 8px 0 0;font-size:15.5px;
              transition:color .2s,background .2s,border-color .2s;display:flex;align-items:center;gap:7px}
   nav button:hover{color:var(--ink);background:var(--surface2)}
   nav button.active{color:var(--brandInk);border-bottom-color:var(--amber)}
-  nav button kbd{font-family:inherit;font-size:10px;font-weight:700;color:var(--muted);background:var(--surface2);
+  nav button kbd{font-family:inherit;font-size:11.5px;font-weight:700;color:var(--muted);background:var(--surface2);
                  border:1px solid var(--line);border-radius:4px;padding:1px 5px}
   nav button.active kbd{color:var(--brandInk)}
   .filters{margin-left:auto;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
   .field{display:flex;flex-direction:column;gap:4px}
-  .field label{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .field label{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
   .field select{min-width:158px;padding:8px 32px 8px 11px;border-radius:9px;border:1px solid var(--line);background-color:var(--surface);
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2365708C' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
     background-repeat:no-repeat;background-position:right 11px center;appearance:none;-webkit-appearance:none;
-    color:var(--ink);font-size:13.5px;font-family:inherit;cursor:pointer;transition:border-color .2s,box-shadow .2s,background-color .35s}
+    color:var(--ink);font-size:14.5px;font-family:inherit;cursor:pointer;transition:border-color .2s,box-shadow .2s,background-color .35s}
   .field select:hover{border-color:var(--muted)}
   .field select:focus{outline:none;border-color:var(--amber);box-shadow:0 0 0 3px rgba(245,158,11,.22)}
   .btn{padding:9px 14px;border-radius:9px;border:1px solid var(--line);background:var(--surface2);color:var(--ink);
-       font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .2s,opacity .2s,transform .2s}
+       font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .2s,opacity .2s,transform .2s}
   .btn:hover:not([disabled]){background:var(--tagBg);transform:translateY(-1px)}
   .btn[disabled]{opacity:.4;cursor:default}
   .scope{max-width:1480px;margin:0 auto;padding:0 28px 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-         font-size:12.5px;color:var(--muted)}
-  .chip{font-size:12px;background:var(--tagBg);color:var(--tagInk);border:1px solid var(--tagLine);border-radius:999px;
+         font-size:14px;color:var(--muted)}
+  .chip{font-size:13.5px;background:var(--tagBg);color:var(--tagInk);border:1px solid var(--tagLine);border-radius:999px;
         padding:3px 10px;font-weight:600;display:inline-flex;align-items:center;gap:6px;animation:pop .25s ease;margin-right:5px}
   @keyframes pop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
 
   main{padding:26px 28px 40px;max-width:1480px;margin:0 auto}
   section{display:none} section.active{display:block}
   .sec-head{margin:0 0 18px}
-  .sec-head h2{font-family:Cambria,Georgia,serif;font-size:23px;color:var(--ink);margin:0 0 4px}
-  .sec-head p{margin:0;color:var(--muted);font-size:13.5px;max-width:940px}
+  .sec-head h2{font-family:Cambria,Georgia,serif;font-size:27px;color:var(--ink);margin:0 0 4px}
+  .sec-head p{margin:0;color:var(--muted);font-size:15.5px;max-width:940px}
   .band{display:flex;align-items:center;gap:12px;margin:30px 0 14px}
-  .band h3{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0;white-space:nowrap}
+  .band h3{font-size:13.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0;white-space:nowrap}
   .band:after{content:"";flex:1;height:1px;background:var(--line)}
 
   .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
   .kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:15px 17px 13px;box-shadow:var(--shadow);
        transition:transform .25s,box-shadow .25s,background .35s,border-color .35s}
   .kpi:hover{transform:translateY(-2px);box-shadow:var(--shadowUp)}
-  .kpi .l{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-  .kpi .v{font-family:Cambria,Georgia,serif;font-size:29px;font-weight:700;color:var(--ink);margin-top:4px;font-variant-numeric:tabular-nums}
-  .kpi .s{font-size:12px;color:var(--muted);margin-top:2px}
+  .kpi .l{font-size:12.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .kpi .v{font-family:Cambria,Georgia,serif;font-size:34px;font-weight:700;color:var(--ink);margin-top:4px;font-variant-numeric:tabular-nums}
+  .kpi .s{font-size:13px;color:var(--muted);margin-top:2px}
   .kpi.warn .v{color:var(--red)} .kpi.good .v{color:var(--teal)}
 
   .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
@@ -112,18 +114,18 @@
         display:flex;flex-direction:column;transition:transform .25s,box-shadow .25s,background .35s,border-color .35s}
   .card:hover{transform:translateY(-2px);box-shadow:var(--shadowUp)}
   .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
-  .card h4{margin:0;font-size:15px;color:var(--ink);line-height:1.3;font-weight:700}
-  .tag{flex:none;font-size:10.5px;font-weight:700;color:var(--tagInk);background:var(--tagBg);border:1px solid var(--tagLine);
+  .card h4{margin:0;font-size:17px;color:var(--ink);line-height:1.3;font-weight:700}
+  .tag{flex:none;font-size:12px;font-weight:700;color:var(--tagInk);background:var(--tagBg);border:1px solid var(--tagLine);
        border-radius:999px;padding:3px 9px;white-space:nowrap}
-  .chart-box{position:relative;height:275px;width:100%;min-width:0}
-  .chart-box.tall{height:300px}
-  .interp{margin-top:13px;background:var(--interp);border-radius:10px;padding:11px 13px;font-size:12.8px;line-height:1.5;color:var(--ink)}
+  .chart-box{position:relative;height:300px;width:100%;min-width:0}
+  .chart-box.tall{height:330px}
+  .interp{margin-top:14px;background:var(--interp);border-radius:10px;padding:12px 15px;font-size:14.5px;line-height:1.55;color:var(--ink)}
   .interp b{color:var(--brandInk);margin-right:4px}
   .wide{grid-column:1/-1}
 
-  table{width:100%;border-collapse:collapse;font-size:12.8px}
-  th{background:var(--surface2);color:var(--ink);text-align:left;padding:9px 10px;font-weight:700;border-bottom:2px solid var(--line)}
-  td{padding:8px 10px;border-bottom:1px solid var(--line2);color:var(--ink)}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{background:var(--surface2);color:var(--ink);text-align:left;padding:11px 12px;font-weight:700;border-bottom:2px solid var(--line)}
+  td{padding:10px 12px;border-bottom:1px solid var(--line2);color:var(--ink)}
   tbody tr{transition:background .15s} tbody tr:hover td{background:var(--surface2)}
   td.n{text-align:right;font-variant-numeric:tabular-nums}
   .flag{color:var(--red);font-weight:700}
@@ -133,17 +135,17 @@
   .step{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
   .step .t{display:flex;align-items:center;gap:10px;margin-bottom:8px}
   .step .num{width:28px;height:28px;border-radius:50%;background:var(--brandInk);color:var(--surface);display:flex;align-items:center;
-             justify-content:center;font-weight:700;font-size:13px;flex:none}
+             justify-content:center;font-weight:700;font-size:14px;flex:none}
   [data-theme="dark"] .step .num{color:#0B0F1C}
   .step .num.a{background:var(--amber);color:#3B2A05} .step .num.g{background:var(--teal);color:#04261A}
-  .step h5{margin:0;font-size:14.5px;color:var(--ink)} .step .time{margin-left:auto;font-size:11.5px;color:var(--muted);white-space:nowrap}
-  .step p,.step li{font-size:12.8px;line-height:1.5;margin:4px 0;color:var(--ink)} .step ul{padding-left:17px;margin:6px 0}
-  code{background:var(--surface2);padding:1px 5px;border-radius:4px;font-family:Consolas,"Courier New",monospace;font-size:12px;color:var(--ink)}
+  .step h5{margin:0;font-size:16px;color:var(--ink)} .step .time{margin-left:auto;font-size:12.5px;color:var(--muted);white-space:nowrap}
+  .step p,.step li{font-size:14px;line-height:1.5;margin:4px 0;color:var(--ink)} .step ul{padding-left:17px;margin:6px 0}
+  code{background:var(--surface2);padding:1px 5px;border-radius:4px;font-family:Consolas,"Courier New",monospace;font-size:13px;color:var(--ink)}
   .qa{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow);margin-top:16px}
-  .qa h5{margin:0 0 6px;color:var(--brandInk);font-size:14px} .qa p{font-size:12.8px;margin:5px 0 12px;line-height:1.5}
-  .ref{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:700;background:var(--tagBg);
+  .qa h5{margin:0 0 6px;color:var(--brandInk);font-size:15.5px} .qa p{font-size:14.5px;margin:5px 0 12px;line-height:1.5}
+  .ref{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:700;background:var(--tagBg);
        color:var(--tagInk);border:1px solid var(--tagLine);margin-left:6px}
-  footer{text-align:center;color:var(--muted);font-size:12px;padding:8px 28px 30px}
+  footer{text-align:center;color:var(--muted);font-size:13px;padding:8px 28px 30px}
 
   @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
   section.active{animation:fadeUp .32s ease both}
@@ -161,7 +163,7 @@
 <body>
 <div class="topbar">
   <div class="row1">
-    <div class="brand"><div class="mark">EC</div>
+    <div class="brand"><div class="mark"><svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Analytics logo"><rect width="40" height="40" rx="10" fill="url(#lg)"/><polyline points="11.6,19.4 20,14.4 28.4,9.4" fill="none" stroke="#1E2761" stroke-opacity=".26" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="9" y="21" width="5.2" height="10" rx="1.6" fill="#9DB2F0"/><rect x="17.4" y="16" width="5.2" height="15" rx="1.6" fill="#1E2761"/><rect x="25.8" y="11" width="5.2" height="20" rx="1.6" fill="#F59E0B"/><circle cx="28.4" cy="9.4" r="2.3" fill="#F59E0B" stroke="#FFFFFF" stroke-width="1.3"/><defs><linearGradient id="lg" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#EDF1FB"/></linearGradient></defs></svg></div>
       <div><h1>E-commerce Customer Analytics</h1><div class="sub">Orders Jan 2024 – Jun 2025 · 7 Southeast-Asian markets · Prepared by Sak</div></div>
     </div>
     <div class="right">
@@ -354,19 +356,19 @@ function palette(){
      bubble:dark?'rgba(96,165,250,.40)':'rgba(37,99,235,.40)'};
 }
 function chartDefaults(){
-  Chart.defaults.font.family='Calibri, "Segoe UI", system-ui, sans-serif'; Chart.defaults.font.size=12; Chart.defaults.color=P.tick;
+  Chart.defaults.font.family='Calibri, "Segoe UI", system-ui, sans-serif'; Chart.defaults.font.size=13.5; Chart.defaults.color=P.tick;
   Chart.defaults.animation={duration:900,easing:'easeOutQuart'}; Chart.defaults.transitions.active.animation.duration=250;
   Chart.defaults.plugins.tooltip={...Chart.defaults.plugins.tooltip,backgroundColor:P.tip,titleColor:'#fff',bodyColor:'#E5E7EB',
-    padding:10,cornerRadius:8,displayColors:false,titleFont:{weight:'700'}};
-  Chart.defaults.plugins.legend.labels={...Chart.defaults.plugins.legend.labels,usePointStyle:true,pointStyle:'rectRounded',boxWidth:10,padding:16,color:P.tick};
-  Chart.defaults.scale.title={display:true,color:P.tick,font:{size:11.5,weight:'600'},padding:{top:6,bottom:4}};
-  Chart.defaults.scale.ticks={...Chart.defaults.scale.ticks,font:{size:11.5},color:P.tick};
+    padding:11,cornerRadius:8,displayColors:false,titleFont:{weight:'700',size:13.5},bodyFont:{size:13}};
+  Chart.defaults.plugins.legend.labels={...Chart.defaults.plugins.legend.labels,usePointStyle:true,pointStyle:'rectRounded',boxWidth:11,padding:16,font:{size:12.5},color:P.tick};
+  Chart.defaults.scale.title={display:true,color:P.tick,font:{size:13,weight:'600'},padding:{top:6,bottom:4}};
+  Chart.defaults.scale.ticks={...Chart.defaults.scale.ticks,font:{size:12.5},color:P.tick};
   Chart.defaults.scale.grid={...Chart.defaults.scale.grid,color:P.grid};
   Chart.defaults.scale.border={display:false};
 }
 const VL={};
 Chart.register({id:'vl',afterDatasetsDraw(c){const f=VL[c.canvas.id];if(!f)return;const ctx=c.ctx;ctx.save();
-  ctx.font='600 11px Calibri, "Segoe UI", sans-serif';ctx.fillStyle=P.ink;
+  ctx.font='600 12.5px Calibri, "Segoe UI", sans-serif';ctx.fillStyle=P.ink;
   c.data.datasets.forEach((ds,i)=>{const m=c.getDatasetMeta(i);if(m.hidden||m.type!=='bar')return;
     m.data.forEach((el,j)=>{const v=ds.data[j];if(v==null)return;
       if(c.options.indexAxis==='y'){ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(f(v,i),el.x+6,el.y);}
