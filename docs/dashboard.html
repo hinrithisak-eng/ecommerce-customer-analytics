@@ -45,15 +45,28 @@
   nav button.active{color:var(--navy);border-bottom-color:var(--amber)}
   main{padding:24px 32px;max-width:1400px;margin:0 auto} section{display:none} section.active{display:block}
   .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
-  .kpi{background:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-  .kpi .v{font-family:Cambria,Georgia,serif;font-size:30px;font-weight:700;color:var(--navy)} .kpi .l{font-size:12px;color:var(--muted);margin-top:4px}
+  .kpi{background:#fff;border-radius:14px;padding:16px 18px 14px;box-shadow:0 1px 2px rgba(30,39,97,.05),0 4px 14px rgba(30,39,97,.05);transition:transform .25s,box-shadow .25s}
+  .kpi:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(30,39,97,.10)}
+  .kpi .l{font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .kpi .v{font-family:Cambria,Georgia,serif;font-size:30px;font-weight:700;color:var(--navy);margin-top:4px;font-variant-numeric:tabular-nums} .kpi .s{font-size:12px;color:var(--muted);margin-top:2px}
   .kpi.warn .v{color:var(--red)} .kpi.good .v{color:var(--teal)}
   .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px} @media(max-width:900px){.grid{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
-  .card{background:#fff;border-radius:12px;padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-  .card h3{margin:0 0 4px;font-size:15px;color:var(--navy)} .card .q{font-size:12px;color:var(--muted);margin-bottom:10px}
-  .card canvas{max-height:300px}
-  .interp{margin-top:12px;background:#EEF4FF;border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.45}
-  .interp b{color:var(--navy)}
+  .sec-head{margin:2px 0 18px} .sec-head h2{font-family:Cambria,Georgia,serif;font-size:22px;color:var(--navy);margin:0 0 4px} .sec-head p{margin:0;color:var(--muted);font-size:13.5px}
+  .card{background:#fff;border-radius:14px;padding:20px 22px 18px;box-shadow:0 1px 2px rgba(30,39,97,.05),0 4px 14px rgba(30,39,97,.05);display:flex;flex-direction:column;transition:transform .25s ease,box-shadow .25s ease}
+  .card:hover{transform:translateY(-2px);box-shadow:0 2px 4px rgba(30,39,97,.06),0 12px 28px rgba(30,39,97,.10)}
+  .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+  .card h3{margin:0;font-size:15.5px;color:var(--navy);line-height:1.3}
+  .tag{flex:none;font-size:11px;font-weight:600;color:var(--navy);background:var(--pale);border:1px solid #DDE5F5;border-radius:999px;padding:3px 9px;white-space:nowrap}
+  .grid>*{min-width:0} .chart-box{position:relative;height:280px;width:100%;min-width:0} .chart-box.tall{height:300px}
+  .interp{margin-top:14px;background:#EEF4FF;border-left:0;border-radius:10px;padding:11px 14px;font-size:13px;line-height:1.5;color:var(--ink)}
+  .interp b{color:var(--navy);margin-right:4px}
+  /* transitions */
+  @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  section.active{animation:fadeUp .35s ease both}
+  section.active .card,section.active .kpi,section.active .step{animation:fadeUp .5s ease both}
+  section.active .grid>*:nth-child(1){animation-delay:.05s} section.active .grid>*:nth-child(2){animation-delay:.12s} section.active .grid>*:nth-child(3){animation-delay:.19s} section.active .grid>*:nth-child(4){animation-delay:.26s} section.active .grid>*:nth-child(5){animation-delay:.33s}
+  .kpis>*:nth-child(n){animation-delay:calc(var(--i,0)*.06s)}
+  nav button{transition:color .2s,border-color .2s} .btn{transition:background .2s,opacity .2s}
   table{width:100%;border-collapse:collapse;font-size:13px} th{background:var(--navy);color:#fff;text-align:left;padding:8px 10px;font-weight:600}
   td{padding:7px 10px;border-bottom:1px solid var(--line)} tr:nth-child(even) td{background:var(--pale)} td.n{text-align:right;font-variant-numeric:tabular-nums}
   .wide{grid-column:1/-1}
@@ -96,45 +109,49 @@
 </div>
 <main>
 <section id="overview" class="active">
+  <div class="sec-head"><h2>Overview</h2><p>Where the revenue comes from, how it moves over time, and how much leaks away.</p></div>
   <div class="kpis" id="kpis"></div>
   <div class="grid">
-    <div class="card"><h3>Net revenue by product category</h3><div class="q">Q1 · groupby + sort</div><canvas id="cCat"></canvas>
+    <div class="card"><div class="card-head"><h3>Net revenue by product category</h3><span class="tag">Q1 · groupby + sort</span></div><div class="chart-box"><canvas id="cCat"></canvas></div>
       <div class="interp" id="iCat"></div></div>
-    <div class="card"><h3>Monthly orders and net revenue</h3><div class="q">Q3 · time-series groupby</div><canvas id="cMonth"></canvas>
+    <div class="card"><div class="card-head"><h3>Monthly orders and net revenue</h3><span class="tag">Q3 · time-series groupby</span></div><div class="chart-box"><canvas id="cMonth"></canvas></div>
       <div class="interp"><b>Interpretation</b> Orders and revenue climb through 2024 and spike in Nov–Dec (December ≈ 2.4× the Q1 monthly average), then fall sharply in January before recovering slightly above the previous year's level.</div></div>
-    <div class="card"><h3>Distribution of order value</h3><div class="q">Histogram · total_amount</div><canvas id="cHist"></canvas>
+    <div class="card"><div class="card-head"><h3>Distribution of order value</h3><span class="tag">Histogram · total_amount</span></div><div class="chart-box"><canvas id="cHist"></canvas></div>
       <div class="interp" id="iHist"></div></div>
-    <div class="card"><h3>Order status mix</h3><div class="q">Pie · revenue leakage</div><canvas id="cStatus"></canvas>
+    <div class="card"><div class="card-head"><h3>Order status mix</h3><span class="tag">Pie · revenue leakage</span></div><div class="chart-box"><canvas id="cStatus"></canvas></div>
       <div class="interp" id="iStatus"></div></div>
   </div>
 </section>
 <section id="customers">
+  <div class="sec-head"><h2>Customers</h2><p>Who buys, how often they come back, and which markets and channels bring the most valuable customers.</p></div>
   <div class="grid">
-    <div class="card"><h3>Orders per customer vs. average order value by segment</h3><div class="q">Q2 · groupby, derived ratios</div><canvas id="cSeg"></canvas>
+    <div class="card"><div class="card-head"><h3>Orders per customer vs. average order value by segment</h3><span class="tag">Q2 · groupby, derived ratios</span></div><div class="chart-box"><canvas id="cSeg"></canvas></div>
       <div class="interp" id="iSeg"></div></div>
-    <div class="card"><h3>Churn-risk distribution (customer level)</h3><div class="q">Q6 · recency since last order</div><canvas id="cChurn"></canvas>
+    <div class="card"><div class="card-head"><h3>Churn-risk distribution (customer level)</h3><span class="tag">Q6 · recency since last order</span></div><div class="chart-box"><canvas id="cChurn"></canvas></div>
       <div class="interp" id="iChurn"></div></div>
-    <div class="card"><h3>Net revenue by country</h3><div class="q">Q4 · groupby</div><canvas id="cCountry"></canvas>
+    <div class="card"><div class="card-head"><h3>Net revenue by country</h3><span class="tag">Q4 · groupby</span></div><div class="chart-box"><canvas id="cCountry"></canvas></div>
       <div class="interp" id="iCountry"></div></div>
-    <div class="card"><h3>Revenue per acquired customer by channel</h3><div class="q">Q4 · groupby / nunique</div><canvas id="cChan"></canvas>
+    <div class="card"><div class="card-head"><h3>Revenue per acquired customer by channel</h3><span class="tag">Q4 · groupby / nunique</span></div><div class="chart-box"><canvas id="cChan"></canvas></div>
       <div class="interp" id="iChan"></div></div>
-    <div class="card wide"><h3>Payment-method mix by age group</h3><div class="q">Q7 · crosstab (normalised by row)</div><canvas id="cPay" style="max-height:260px"></canvas>
+    <div class="card wide"><div class="card-head"><h3>Payment-method mix by age group</h3><span class="tag">Q7 · crosstab (normalised by row)</span></div><div class="chart-box tall"><canvas id="cPay"></canvas></div>
       <div class="interp"><b>Interpretation</b> Credit Card and E-Wallet cover 60–65 % of orders in every age band. Cash on Delivery shrinks from ≈17 % among 18–24-year-olds to ≈8 % among 55+, who lean on E-Wallet and Bank Transfer instead.</div></div>
   </div>
 </section>
 <section id="service">
+  <div class="sec-head"><h2>Service quality</h2><p>How delivery speed and returns shape the ratings customers leave.</p></div>
   <div class="grid">
-    <div class="card"><h3>Mean review rating by delivery-time band</h3><div class="q">Q5 · pd.cut + groupby</div><canvas id="cDeliv"></canvas>
+    <div class="card"><div class="card-head"><h3>Mean review rating by delivery-time band</h3><span class="tag">Q5 · pd.cut + groupby</span></div><div class="chart-box"><canvas id="cDeliv"></canvas></div>
       <div class="interp" id="iDeliv"></div></div>
-    <div class="card"><h3>Delivery time vs. review rating</h3><div class="q">Q5 · scatter (bubble size = number of reviews)</div><canvas id="cScatter"></canvas>
+    <div class="card"><div class="card-head"><h3>Delivery time vs. review rating</h3><span class="tag">Q5 · scatter (bubble size = number of reviews)</span></div><div class="chart-box"><canvas id="cScatter"></canvas></div>
       <div class="interp"><b>Interpretation</b> The cloud slides from 4–5 stars at short delivery times to 2–3 stars at long ones. Pearson r = −0.38 (p ≈ 1e-42); each extra day costs roughly 0.1 star.</div></div>
-    <div class="card"><h3>Return rate by product category</h3><div class="q">Q1 · is_returned.mean()</div><canvas id="cRet"></canvas>
+    <div class="card"><div class="card-head"><h3>Return rate by product category</h3><span class="tag">Q1 · is_returned.mean()</span></div><div class="chart-box"><canvas id="cRet"></canvas></div>
       <div class="interp" id="iRet"></div></div>
-    <div class="card"><h3>Rating by order status</h3><div class="q">Delivered vs. Returned</div><canvas id="cRateStatus"></canvas>
+    <div class="card"><div class="card-head"><h3>Rating by order status</h3><span class="tag">Delivered vs. Returned</span></div><div class="chart-box"><canvas id="cRateStatus"></canvas></div>
       <div class="interp" id="iRateStatus"></div></div>
   </div>
 </section>
 <section id="quality">
+  <div class="sec-head"><h2>Data quality</h2><p>What was wrong with the raw file and how each issue was handled before analysis.</p></div>
   <div class="kpis">
     <div class="kpi"><div class="v">2,045</div><div class="l">raw rows loaded</div></div>
     <div class="kpi warn"><div class="v">45</div><div class="l">exact duplicates removed</div></div>
@@ -165,6 +182,7 @@
   </div>
 </section>
 <section id="findings">
+  <div class="sec-head"><h2>Findings & recommendations</h2><p>Seven evidence-backed findings and the actions that follow from them.</p></div>
   <div class="grid">
     <div class="card"><h3>Key findings</h3>
       <table><tr><th>#</th><th>Finding</th><th>Evidence</th></tr>
@@ -187,6 +205,7 @@
   </div>
 </section>
 <section id="demo">
+  <div class="sec-head"><h2>Demo guide</h2><p>A ten-minute script for the live demonstration, plus preparation and likely questions.</p></div>
   <div class="steps">
     <div class="step"><div class="t"><div class="num">1</div><h4>Frame the problem</h4><span class="time">2 min</span></div>
       <p>Slides 1–4. One sentence on who the retailer is (7 SEA markets) and the three things management cannot answer. Show the 3 objectives and 7 questions.</p></div>
@@ -224,19 +243,33 @@ const ALL = raw.rows;
 const NAVY='#1E2761', AMBER='#F59E0B', TEAL='#10B981', RED='#EF4444', BLUE='#2563eb', ICE='#CADCFC', MUTED='#6B7280';
 const CATS=['Electronics','Home & Kitchen','Fashion','Sports','Beauty','Toys','Books'];
 const PAL=[BLUE,AMBER,TEAL,RED,'#8b5cf6','#0ea5e9','#f97316'];
-Chart.defaults.font.family='Calibri, "Segoe UI", system-ui, sans-serif'; Chart.defaults.color=MUTED;
+Chart.defaults.font.family='Calibri, "Segoe UI", system-ui, sans-serif'; Chart.defaults.font.size=12; Chart.defaults.color=MUTED;
+Chart.defaults.animation={duration:900,easing:'easeOutQuart'}; Chart.defaults.transitions.active.animation.duration=250;
+Chart.defaults.plugins.tooltip={...Chart.defaults.plugins.tooltip,backgroundColor:'#1E2761',titleColor:'#fff',bodyColor:'#E5E7EB',padding:10,cornerRadius:8,displayColors:false,titleFont:{weight:'700'}};
+Chart.defaults.plugins.legend.labels={...Chart.defaults.plugins.legend.labels,usePointStyle:true,pointStyle:'rectRounded',boxWidth:10,padding:16};
+Chart.defaults.scale.title={display:true,color:'#6B7280',font:{size:11.5,weight:'600'},padding:{top:6,bottom:4}};
+Chart.defaults.scale.ticks={...Chart.defaults.scale.ticks,font:{size:11.5}};
+Chart.defaults.scale.grid={...Chart.defaults.scale.grid,color:'#EEF0F4'}; Chart.defaults.scale.border={display:false};
+const VL={}; const valueLabels={id:'vl',afterDatasetsDraw(c){const f=VL[c.canvas.id];if(!f)return;const o={fmt:f};const ctx=c.ctx;ctx.save();ctx.font='600 11px Calibri, "Segoe UI", sans-serif';ctx.fillStyle='#374151';
+  c.data.datasets.forEach((ds,i)=>{const meta=c.getDatasetMeta(i);if(meta.hidden||meta.type!=='bar')return;meta.data.forEach((el,j)=>{const v=ds.data[j];if(v==null)return;
+    if(c.options.indexAxis==='y'){ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(o.fmt(v),el.x+6,el.y);}else{ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(o.fmt(v),el.x,el.y-4);}});});ctx.restore();}};
+Chart.register(valueLabels);
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; const mlabel=m=>MON[+m.slice(5,7)-1]+" '"+m.slice(2,4);
 const fmt$=v=>'$'+Math.round(v).toLocaleString(); const pct=v=>(v*100).toFixed(1)+' %';
 const uniq=(k)=>[...new Set(ALL.map(r=>r[C[k]]))].filter(Boolean).sort();
 function fill(id,k){const s=document.getElementById(id);uniq(k).forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;s.appendChild(o);});}
 fill('fCountry','country'); fill('fSegment','customer_segment'); fill('fCategory','product_category');
 const charts={};
-function mk(id,cfg){ if(charts[id]) charts[id].destroy(); charts[id]=new Chart(document.getElementById(id),cfg); }
+function mk(id,cfg){ const v=cfg.options&&cfg.options.plugins&&cfg.options.plugins.vl; VL[id]=v&&v.fmt?v.fmt:null; if(v) delete cfg.options.plugins.vl; const ex=charts[id]; if(ex && ex.config.type===cfg.type){ ex.data=cfg.data; ex.options=cfg.options; ex.update(); return; } if(ex) ex.destroy(); charts[id]=new Chart(document.getElementById(id),cfg); }
+const prevK={}; function countUp(el,to,fmt){const from=prevK[el.dataset.k]??0; prevK[el.dataset.k]=to; const t0=performance.now(),d=700; (function step(t){const p=Math.min(1,(t-t0)/d),e=1-Math.pow(1-p,3); el.textContent=fmt(from+(to-from)*e); if(p<1)requestAnimationFrame(step);})(t0);}
 const grp=(rows,k)=>{const m=new Map();rows.forEach(r=>{const key=r[C[k]];if(!m.has(key))m.set(key,[]);m.get(key).push(r);});return m;};
 const sum=(rows,k)=>rows.reduce((a,r)=>a+(r[C[k]]||0),0);
 const mean=(rows,k)=>{const v=rows.map(r=>r[C[k]]).filter(x=>x!==null&&x!==undefined);return v.length?v.reduce((a,b)=>a+b,0)/v.length:0;};
 const nuniq=(rows,k)=>new Set(rows.map(r=>r[C[k]])).size;
-const bar=(labels,data,color,opts={})=>({type:'bar',data:{labels,datasets:[{data,backgroundColor:color,borderRadius:4}]},
-  options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>opts.fmt?opts.fmt(c.raw):c.raw}}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,ticks:{callback:v=>opts.tick?opts.tick(v):v}}},...(opts.extra||{})}});
+const bar=(labels,data,color,opts={})=>({type:'bar',data:{labels,datasets:[{data,backgroundColor:color,borderRadius:6,maxBarThickness:56,hoverBackgroundColor:AMBER}]},
+  options:{maintainAspectRatio:false,plugins:{legend:{display:false},vl:{fmt:opts.fmt},tooltip:{callbacks:{label:c=>opts.fmt?opts.fmt(c.raw):c.raw}}},
+    scales:{x:{grid:{display:false},title:{text:opts.xt||''}},y:{beginAtZero:true,grace:'12%',title:{text:opts.yt||''},ticks:{callback:v=>opts.tick?opts.tick(v):v}}},...(opts.extra||{})}});
+const base=(o={})=>({maintainAspectRatio:false,...o});
 
 function render(){
   const fc=fCountry.value, fs=fSegment.value, fk=fCategory.value;
@@ -247,79 +280,89 @@ function render(){
   const ret=rows.filter(r=>r[C.order_status]==='Returned').length/n, canc=rows.filter(r=>r[C.order_status]==='Cancelled').length/n;
   const rated=rows.filter(r=>r[C.review_rating]!==null);
   const amounts=rows.map(r=>r[C.total_amount]).sort((a,b)=>a-b); const median=amounts[Math.floor(n/2)];
-  kpis.innerHTML=[['Orders',n.toLocaleString()],['Customers',cust.toLocaleString()],['Net revenue',fmt$(rev)],['Avg order value',fmt$(mean(rows,'total_amount'))],['Median order value',fmt$(median)],
-    ['Return rate',pct(ret),'warn'],['Cancellation rate',pct(canc),'warn'],['Avg rating',mean(rated,'review_rating').toFixed(2)+' / 5','good']]
-    .map(k=>`<div class="kpi ${k[2]||''}"><div class="v">${k[1]}</div><div class="l">${k[0]}</div></div>`).join('');
+  const K=[['Orders',n,v=>Math.round(v).toLocaleString(),'','valid orders in view'],['Customers',cust,v=>Math.round(v).toLocaleString(),'','unique customer_id'],
+    ['Net revenue',rev,fmt$,'','delivered orders only'],['Avg order value',mean(rows,'total_amount'),fmt$,'','mean of total_amount'],['Median order value',median,fmt$,'','robust typical order'],
+    ['Return rate',ret,pct,'warn','share of orders returned'],['Cancellation rate',canc,pct,'warn','share of orders cancelled'],['Avg rating',mean(rated,'review_rating'),v=>v.toFixed(2)+' / 5','good',rated.length.toLocaleString()+' reviews']];
+  if(!kpis.children.length) kpis.innerHTML=K.map((k,i)=>`<div class="kpi ${k[3]}" style="--i:${i}"><div class="l">${k[0]}</div><div class="v" data-k="${i}"></div><div class="s"></div></div>`).join('');
+  K.forEach((k,i)=>{const el=kpis.children[i]; countUp(el.querySelector('.v'),k[1],k[2]); el.querySelector('.s').textContent=k[4];});
 
   // category
   const gc=grp(rows,'product_category'); const cats=CATS.filter(c=>gc.has(c)).map(c=>[c,sum(gc.get(c),'net_revenue')]).sort((a,b)=>b[1]-a[1]);
-  mk('cCat',bar(cats.map(c=>c[0]),cats.map(c=>c[1]/1000),NAVY,{fmt:v=>'$'+v.toFixed(1)+'k',tick:v=>'$'+v+'k'}));
+  mk('cCat',bar(cats.map(c=>c[0]),cats.map(c=>c[1]/1000),NAVY,{fmt:v=>'$'+v.toFixed(1)+'k',tick:v=>'$'+v+'k',xt:'Product category',yt:'Net revenue (USD thousands)'}));
   const top=cats[0]; const topShare=top[1]/rev; let cum=0,k80=0; for(const c of cats){cum+=c[1];k80++;if(cum/rev>=0.8)break;}
   iCat.innerHTML=`<b>Interpretation</b> ${top[0]} leads with ${fmt$(top[1])} (${pct(topShare)} of net revenue in this view); the top ${k80} categor${k80>1?'ies':'y'} account for ≥ 80 %.`;
   // month
   const gm=grp(rows,'order_month'); const months=[...gm.keys()].sort();
-  mk('cMonth',{data:{labels:months,datasets:[{type:'line',label:'Net revenue ($k)',data:months.map(m=>sum(gm.get(m),'net_revenue')/1000),borderColor:NAVY,backgroundColor:NAVY,yAxisID:'y1',tension:.25,pointRadius:3},
-    {type:'bar',label:'Orders',data:months.map(m=>gm.get(m).length),backgroundColor:ICE,yAxisID:'y'}]},
-    options:{plugins:{legend:{position:'bottom'}},scales:{x:{grid:{display:false}},y:{position:'left',beginAtZero:true,title:{display:true,text:'Orders'}},y1:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},title:{display:true,text:'Revenue ($k)'}}}}});
+  mk('cMonth',{type:'bar',data:{labels:months.map(mlabel),datasets:[{type:'line',label:'Net revenue (USD k)',data:months.map(m=>sum(gm.get(m),'net_revenue')/1000),borderColor:NAVY,backgroundColor:NAVY,yAxisID:'y1',tension:.3,pointRadius:3.5,pointHoverRadius:6,borderWidth:2.5},
+    {type:'bar',label:'Orders',data:months.map(m=>gm.get(m).length),backgroundColor:ICE,hoverBackgroundColor:AMBER,yAxisID:'y',borderRadius:4}]},
+    options:base({interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom'},tooltip:{displayColors:true,callbacks:{label:c=>c.dataset.label+': '+(c.datasetIndex===0?'$'+c.raw.toFixed(1)+'k':c.raw)}}},
+      scales:{x:{grid:{display:false},title:{text:'Month'}},y:{position:'left',beginAtZero:true,title:{text:'Orders'}},y1:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},title:{text:'Net revenue (USD k)'},ticks:{callback:v=>'$'+v+'k'}}}})});
   // hist
   const edges=[0,25,50,75,100,150,200,300,400,600,1000,2000]; const hc=edges.slice(0,-1).map((e,i)=>amounts.filter(a=>a>=e&&a<edges[i+1]).length);
-  mk('cHist',bar(edges.slice(0,-1).map((e,i)=>`$${e}–${edges[i+1]}`),hc,BLUE,{}));
+  mk('cHist',bar(edges.slice(0,-1).map((e,i)=>`$${e}–${edges[i+1]}`),hc,BLUE,{fmt:v=>v,xt:'Order value band (USD)',yt:'Number of orders'}));
   iHist.innerHTML=`<b>Interpretation</b> Right-skewed: mean ${fmt$(mean(rows,'total_amount'))} vs median ${fmt$(median)}. Most orders sit under $150; a long tail of large Electronics orders pulls the mean up, so the median is the better "typical order".`;
   // status
   const st=['Delivered','Returned','Cancelled'].map(s=>rows.filter(r=>r[C.order_status]===s).length);
-  mk('cStatus',{type:'doughnut',data:{labels:['Delivered','Returned','Cancelled'],datasets:[{data:st,backgroundColor:[TEAL,RED,AMBER]}]},options:{plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:c=>c.label+': '+c.raw+' ('+pct(c.raw/n)+')'}}}}});
+  mk('cStatus',{type:'doughnut',data:{labels:['Delivered','Returned','Cancelled'].map((l,i)=>l+' · '+pct(st[i]/n)),datasets:[{data:st,backgroundColor:[TEAL,RED,AMBER],borderWidth:2,borderColor:'#fff',hoverOffset:8}]},options:base({cutout:'62%',plugins:{legend:{position:'right'},tooltip:{callbacks:{label:c=>c.raw.toLocaleString()+' orders'}}}})});
   iStatus.innerHTML=`<b>Interpretation</b> ${pct(ret+canc)} of orders end returned or cancelled and generate no net revenue — the leakage that R3 targets.`;
   // segments
   const segs=['New','Regular','VIP'].filter(s=>rows.some(r=>r[C.customer_segment]===s)); const gs=grp(rows,'customer_segment');
   const opc=segs.map(s=>gs.get(s).length/nuniq(gs.get(s),'customer_id')), aov=segs.map(s=>mean(gs.get(s),'total_amount')), rpc=segs.map(s=>sum(gs.get(s),'net_revenue')/nuniq(gs.get(s),'customer_id'));
-  mk('cSeg',{type:'bar',data:{labels:segs,datasets:[{label:'Orders per customer',data:opc,backgroundColor:AMBER,yAxisID:'y'},{label:'Avg order value ($)',data:aov,backgroundColor:NAVY,yAxisID:'y1'}]},
-    options:{plugins:{legend:{position:'bottom'}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,title:{display:true,text:'Orders / customer'}},y1:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},title:{display:true,text:'AOV ($)'}}}}});
+  mk('cSeg',{type:'bar',data:{labels:segs,datasets:[{label:'Orders per customer',data:opc,backgroundColor:AMBER,yAxisID:'y',borderRadius:6,maxBarThickness:60},{label:'Average order value (USD)',data:aov,backgroundColor:NAVY,yAxisID:'y1',borderRadius:6,maxBarThickness:60}]},
+    options:base({plugins:{legend:{position:'bottom'},vl:{fmt:v=>v>20?'$'+Math.round(v):v.toFixed(1)},tooltip:{displayColors:true,callbacks:{label:c=>c.dataset.label+': '+(c.datasetIndex?fmt$(c.raw):c.raw.toFixed(2))}}},
+      scales:{x:{grid:{display:false},title:{text:'Customer segment'}},y:{beginAtZero:true,grace:'15%',title:{text:'Orders per customer'}},y1:{position:'right',beginAtZero:true,grace:'15%',grid:{drawOnChartArea:false},title:{text:'Average order value (USD)'},ticks:{callback:v=>'$'+v}}}})});
   iSeg.innerHTML=segs.length>1?`<b>Interpretation</b> ${segs[segs.length-1]} customers place ${opc[opc.length-1].toFixed(1)} orders each vs ${opc[0].toFixed(1)} for ${segs[0]}, while average order value is similar (${aov.map(v=>fmt$(v)).join(' / ')}). Revenue per customer: ${rpc.map(v=>fmt$(v)).join(' / ')} — value comes from frequency.`:`<b>Interpretation</b> Single segment selected: ${opc[0].toFixed(1)} orders per customer, AOV ${fmt$(aov[0])}, revenue per customer ${fmt$(rpc[0])}.`;
   // churn
   const last=new Map(); rows.forEach(r=>{const c=r[C.customer_id],d=r[C.order_date];if(!last.has(c)||d>last.get(c))last.set(c,d);});
   const snap=new Date('2025-07-01'); let hi=0,me=0,lo=0; last.forEach(d=>{const days=(snap-new Date(d))/864e5; if(days>180)hi++;else if(days>90)me++;else lo++;});
   const orders=new Map(); rows.forEach(r=>{const c=r[C.customer_id];orders.set(c,(orders.get(c)||0)+1);}); const repeat=[...orders.values()].filter(v=>v>1).length/orders.size;
-  mk('cChurn',{type:'doughnut',data:{labels:['High (>180 d)','Medium (91–180 d)','Low (≤90 d)'],datasets:[{data:[hi,me,lo],backgroundColor:[RED,AMBER,TEAL]}]},options:{plugins:{legend:{position:'bottom'}}}});
+  mk('cChurn',{type:'doughnut',data:{labels:[`High risk · >180 days · ${pct(hi/cust)}`,`Medium · 91–180 days · ${pct(me/cust)}`,`Low · ≤90 days · ${pct(lo/cust)}`],datasets:[{data:[hi,me,lo],backgroundColor:[RED,AMBER,TEAL],borderWidth:2,borderColor:'#fff',hoverOffset:8}]},options:base({cutout:'62%',plugins:{legend:{position:'right'},tooltip:{callbacks:{label:c=>c.raw.toLocaleString()+' customers'}}}})});
   iChurn.innerHTML=`<b>Interpretation</b> ${pct(repeat)} of the ${cust} customers in view have ordered more than once, but ${pct(hi/cust)} have not ordered in over 180 days (snapshot 1 Jul 2025) — the win-back target for R2.`;
   // country
   const gco=grp(rows,'country'); const cos=[...gco.entries()].map(([k,v])=>[k,sum(v,'net_revenue'),nuniq(v,'customer_id')]).sort((a,b)=>b[1]-a[1]);
-  mk('cCountry',bar(cos.map(c=>c[0]),cos.map(c=>c[1]/1000),NAVY,{fmt:v=>'$'+v.toFixed(1)+'k',tick:v=>'$'+v+'k',extra:{indexAxis:'y',scales:{x:{beginAtZero:true,ticks:{callback:v=>'$'+v+'k'}},y:{grid:{display:false}}}}}));
+  mk('cCountry',bar(cos.map(c=>c[0]),cos.map(c=>c[1]/1000),NAVY,{fmt:v=>'$'+v.toFixed(1)+'k',extra:{indexAxis:'y',scales:{x:{beginAtZero:true,grace:'15%',title:{text:'Net revenue (USD thousands)'},ticks:{callback:v=>'$'+v+'k'}},y:{grid:{display:false},title:{text:'Country'}}}}}));
   iCountry.innerHTML=`<b>Interpretation</b> ${cos[0][0]} leads with ${pct(cos[0][1]/rev)} of revenue from ${cos[0][2]} customers (${fmt$(cos[0][1]/cos[0][2])} each).`;
   // channel
   const gch=grp(rows,'acquisition_channel'); const chs=[...gch.entries()].map(([k,v])=>[k,sum(v,'net_revenue')/nuniq(v,'customer_id')]).sort((a,b)=>b[1]-a[1]);
   const avgRpc=rev/cust;
-  mk('cChan',bar(chs.map(c=>c[0]),chs.map(c=>c[1]),chs.map(c=>c[1]<avgRpc*0.85?RED:AMBER),{fmt:v=>fmt$(v),tick:v=>'$'+v}));
+  mk('cChan',bar(chs.map(c=>c[0]),chs.map(c=>c[1]),chs.map(c=>c[1]<avgRpc*0.85?RED:AMBER),{fmt:v=>fmt$(v),tick:v=>'$'+v,xt:'Acquisition channel',yt:'Net revenue per customer (USD)'}));
   const worst=chs[chs.length-1];
   iChan.innerHTML=`<b>Interpretation</b> Average revenue per customer is ${fmt$(avgRpc)}. ${worst[0]} is lowest at ${fmt$(worst[1])} (${((worst[1]/avgRpc-1)*100).toFixed(0)} % vs average); ${chs[0][0]} is highest at ${fmt$(chs[0][1])}.`;
   // payment by age
   const ages=['18-24','25-34','35-44','45-54','55+'], pays=['Credit Card','E-Wallet','Bank Transfer','Cash on Delivery','PayPal'];
   const ga=grp(rows,'age_group');
-  mk('cPay',{type:'bar',data:{labels:ages,datasets:pays.map((p,i)=>({label:p,data:ages.map(a=>{const g=ga.get(a)||[];return g.length?100*g.filter(r=>r[C.payment_method]===p).length/g.length:0;}),backgroundColor:PAL[i]}))},
-    options:{plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.raw.toFixed(1)+' %'}}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,max:100,ticks:{callback:v=>v+' %'}}}}});
+  mk('cPay',{type:'bar',data:{labels:ages,datasets:pays.map((p,i)=>({label:p,data:ages.map(a=>{const g=ga.get(a)||[];return g.length?100*g.filter(r=>r[C.payment_method]===p).length/g.length:0;}),backgroundColor:PAL[i],borderRadius:3,maxBarThickness:70}))},
+    options:base({indexAxis:'y',interaction:{mode:'index'},plugins:{legend:{position:'bottom'},tooltip:{displayColors:true,callbacks:{label:c=>c.dataset.label+': '+c.raw.toFixed(1)+' %'}}},scales:{x:{stacked:true,max:100,title:{text:'Share of orders (%)'},ticks:{callback:v=>v+' %'}},y:{stacked:true,grid:{display:false},title:{text:'Age group'}}}})});
   // delivery bands
   const rd=rated.filter(r=>r[C.delivery_days]!==null); const bands=[['1–3 days',0,3],['4–6 days',3,6],['7–9 days',6,9],['10+ days',9,99]];
   const bm=bands.map(b=>{const g=rd.filter(r=>r[C.delivery_days]>b[1]&&r[C.delivery_days]<=b[2]);return [b[0],mean(g,'review_rating'),g.length];});
-  mk('cDeliv',{type:'bar',data:{labels:bm.map(b=>b[0]),datasets:[{data:bm.map(b=>b[1]),backgroundColor:[TEAL,'#6EE7B7',AMBER,RED],borderRadius:4}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw.toFixed(2)+' ★  (n = '+bm[c.dataIndex][2]+')'}}},scales:{x:{grid:{display:false}},y:{min:0,max:5}}}});
+  mk('cDeliv',{type:'bar',data:{labels:bm.map(b=>b[0]),datasets:[{data:bm.map(b=>b[1]),backgroundColor:[TEAL,'#6EE7B7',AMBER,RED],borderRadius:6,maxBarThickness:70}]},options:base({plugins:{legend:{display:false},vl:{fmt:v=>v.toFixed(2)+' ★'},tooltip:{callbacks:{label:c=>c.raw.toFixed(2)+' ★  ·  '+bm[c.dataIndex][2]+' reviews'}}},scales:{x:{grid:{display:false},title:{text:'Delivery time band'}},y:{min:0,max:5,title:{text:'Mean review rating (1–5 ★)'}}}})});
   // correlation
   const xs=rd.map(r=>r[C.delivery_days]), ys=rd.map(r=>r[C.review_rating]); const mx=xs.reduce((a,b)=>a+b,0)/xs.length, my=ys.reduce((a,b)=>a+b,0)/ys.length;
   let sxy=0,sxx=0,syy=0; xs.forEach((x,i)=>{sxy+=(x-mx)*(ys[i]-my);sxx+=(x-mx)**2;syy+=(ys[i]-my)**2;}); const r=sxx&&syy?sxy/Math.sqrt(sxx*syy):0;
   iDeliv.innerHTML=`<b>Interpretation</b> Mean rating falls from ${bm[0][1].toFixed(2)}★ (1–3 days) to ${bm[3][1].toFixed(2)}★ (10+ days). Pearson r = ${r.toFixed(2)} on ${rd.length} reviewed orders — slower delivery reliably lowers ratings (O3).`;
   const cnt=new Map(); rd.forEach(rr=>{const k=rr[C.delivery_days]+'|'+rr[C.review_rating];cnt.set(k,(cnt.get(k)||0)+1);});
-  mk('cScatter',{type:'bubble',data:{datasets:[{data:[...cnt.entries()].map(([k,v])=>{const [x,y]=k.split('|').map(Number);return {x,y,r:Math.sqrt(v)*2.2};}),backgroundColor:'rgba(37,99,235,.45)'}]},
-    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw.x} days → ${c.raw.y} ★ (${Math.round((c.raw.r/2.2)**2)} reviews)`}}},scales:{x:{title:{display:true,text:'Delivery time (days)'},grid:{display:false}},y:{min:0.5,max:5.5,ticks:{stepSize:1},title:{display:true,text:'Review rating'}}}}});
+  const slope=sxx?sxy/sxx:0, icpt=my-slope*mx;
+  mk('cScatter',{type:'bubble',data:{datasets:[{label:'Reviews',data:[...cnt.entries()].map(([k,v])=>{const [x,y]=k.split('|').map(Number);return {x,y,r:Math.sqrt(v)*2.2};}),backgroundColor:'rgba(37,99,235,.40)',borderColor:'rgba(37,99,235,.7)',borderWidth:1},
+    {type:'line',label:`Trend (r = ${r.toFixed(2)})`,data:[{x:1,y:icpt+slope},{x:11,y:icpt+slope*11}],borderColor:RED,borderWidth:2.5,borderDash:[6,4],pointRadius:0}]},
+    options:base({plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:c=>c.datasetIndex?'':`${c.raw.x} days → ${c.raw.y} ★  ·  ${Math.round((c.raw.r/2.2)**2)} reviews`}}},scales:{x:{min:0,max:12,title:{text:'Delivery time (days)'},grid:{display:false},ticks:{stepSize:1}},y:{min:0.5,max:5.5,ticks:{stepSize:1,callback:v=>v+' ★'},title:{text:'Review rating'}}}})});
   // returns by cat
   const rc=CATS.filter(c=>gc.has(c)).map(c=>[c,gc.get(c).filter(r=>r[C.order_status]==='Returned').length/gc.get(c).length]).sort((a,b)=>b[1]-a[1]);
-  mk('cRet',bar(rc.map(c=>c[0]),rc.map(c=>c[1]*100),rc.map((c,i)=>i===0?RED:NAVY),{fmt:v=>v.toFixed(1)+' %',tick:v=>v+' %'}));
+  mk('cRet',bar(rc.map(c=>c[0]),rc.map(c=>c[1]*100),rc.map((c,i)=>i===0?RED:NAVY),{fmt:v=>v.toFixed(1)+' %',tick:v=>v+' %',xt:'Product category',yt:'Return rate (% of orders)'}));
   iRet.innerHTML=`<b>Interpretation</b> ${rc[0][0]} is returned most (${pct(rc[0][1])}), ${rc[rc.length-1][0]} least (${pct(rc[rc.length-1][1])}). Note: the chi-square test across categories is not significant (p = 0.23) — treat as indicative.`;
   // rating by status
   const rs=['Delivered','Returned'].map(s=>mean(rated.filter(r=>r[C.order_status]===s),'review_rating'));
   const low=['Delivered','Returned'].map(s=>{const g=rated.filter(r=>r[C.order_status]===s);return g.length?g.filter(r=>r[C.review_rating]<=2).length/g.length:0;});
-  mk('cRateStatus',{type:'bar',data:{labels:['Delivered','Returned'],datasets:[{label:'Mean rating',data:rs,backgroundColor:[TEAL,RED],borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{min:0,max:5}}}});
+  mk('cRateStatus',{type:'bar',data:{labels:['Delivered','Returned'],datasets:[{label:'Mean rating',data:rs,backgroundColor:[TEAL,RED],borderRadius:6,maxBarThickness:90},{label:'Share of 1–2 ★ reviews (%)',data:low.map(v=>v*100),backgroundColor:['#A7F3D0','#FECACA'],borderRadius:6,maxBarThickness:90,yAxisID:'y1'}]},
+    options:base({plugins:{legend:{position:'bottom'},vl:{fmt:v=>v>5?v.toFixed(1)+' %':v.toFixed(2)+' ★'},tooltip:{displayColors:true,callbacks:{label:c=>c.datasetIndex?'1–2 ★ share: '+c.raw.toFixed(1)+' %':'Mean rating: '+c.raw.toFixed(2)+' ★'}}},
+      scales:{x:{grid:{display:false},title:{text:'Order status'}},y:{min:0,max:5,title:{text:'Mean review rating (1–5 ★)'}},y1:{position:'right',min:0,max:100,grid:{drawOnChartArea:false},title:{text:'Share of 1–2 ★ reviews (%)'},ticks:{callback:v=>v+' %'}}}})});
   iRateStatus.innerHTML=`<b>Interpretation</b> Delivered orders average ${rs[0].toFixed(2)}★ vs ${rs[1].toFixed(2)}★ for returned ones; ${pct(low[1])} of returned-order reviews are 1–2 stars (vs ${pct(low[0])}).`;
 }
 ['fCountry','fSegment','fCategory'].forEach(id=>document.getElementById(id).addEventListener('change',render));
 reset.onclick=()=>{fCountry.value='';fSegment.value='';fCategory.value='';render();};
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('section').forEach(s=>s.classList.toggle('active',s.id===b.dataset.tab));});
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+  document.querySelectorAll('section').forEach(s=>{s.classList.remove('active'); if(s.id===b.dataset.tab){void s.offsetWidth; s.classList.add('active');}});
+  const sec=document.getElementById(b.dataset.tab); requestAnimationFrame(()=>{sec.querySelectorAll('canvas').forEach(cv=>{const c=charts[cv.id]; if(c){c.resize(); c.reset(); c.update();}});}); window.scrollTo({top:0,behavior:'smooth'});});
 render();
 </script>
 </body>
