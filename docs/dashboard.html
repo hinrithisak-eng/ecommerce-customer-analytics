@@ -23,12 +23,24 @@
   :root{--navy:#1E2761;--navy2:#2A3676;--ice:#CADCFC;--amber:#F59E0B;--teal:#10B981;--red:#EF4444;--blue:#2563eb;
         --ink:#1F2937;--muted:#6B7280;--pale:#F3F6FC;--line:#E5E7EB;--bg:#F8FAFC;}
   *{box-sizing:border-box} body{margin:0;font-family:Calibri,"Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
-  header{background:var(--navy);color:#fff;padding:18px 32px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
-  header h1{font-family:Cambria,Georgia,serif;font-size:24px;margin:0} header .sub{color:var(--ice);font-size:13px;margin-top:2px}
-  .filters{margin-left:auto;display:flex;gap:10px;align-items:center;font-size:13px}
-  .filters select{padding:6px 10px;border-radius:6px;border:1px solid var(--navy2);background:var(--navy2);color:#fff;font-size:13px}
-  .filters button{padding:6px 12px;border-radius:6px;border:1px solid var(--ice);background:transparent;color:#fff;cursor:pointer}
-  nav{background:#fff;border-bottom:1px solid var(--line);padding:0 32px;display:flex;gap:4px;overflow-x:auto}
+  header{background:linear-gradient(90deg,var(--navy) 0%,var(--navy2) 100%);color:#fff;padding:22px 32px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:14px}
+  .mark{width:44px;height:44px;border-radius:10px;background:var(--amber);color:var(--navy);font-family:Cambria,Georgia,serif;font-weight:700;font-size:18px;display:flex;align-items:center;justify-content:center;flex:none}
+  header h1{font-family:Cambria,Georgia,serif;font-size:24px;margin:0;letter-spacing:.2px} header .sub{color:var(--ice);font-size:13px;margin-top:3px}
+  .meta{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+  .meta span{font-size:12px;color:var(--ice);border:1px solid rgba(202,220,252,.35);border-radius:999px;padding:4px 12px}
+  .toolbar{background:#fff;border-bottom:1px solid var(--line);box-shadow:0 2px 6px rgba(30,39,97,.05)}
+  .toolbar-inner{max-width:1400px;margin:0 auto;padding:14px 32px;display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap}
+  .tb-title{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding-bottom:9px}
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field label{font-size:12px;color:var(--muted);font-weight:600}
+  .field select{min-width:190px;padding:8px 34px 8px 12px;border-radius:8px;border:1px solid #D1D5DB;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;appearance:none;-webkit-appearance:none;color:var(--ink);font-size:13.5px;font-family:inherit;cursor:pointer}
+  .field select:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(30,39,97,.12)}
+  .tb-right{margin-left:auto;display:flex;align-items:center;gap:12px;padding-bottom:2px}
+  .active-chips{display:flex;gap:6px;flex-wrap:wrap} .chip{font-size:12px;background:#FFF4D6;color:#92400E;border:1px solid #FDE68A;border-radius:999px;padding:4px 10px;font-weight:600}
+  .btn{padding:9px 16px;border-radius:8px;border:1px solid var(--navy);background:var(--navy);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+  .btn:hover{background:var(--navy2)} .btn[disabled]{opacity:.45;cursor:default}
+  nav{background:#fff;border-bottom:1px solid var(--line);padding:0 32px;display:flex;gap:4px;overflow-x:auto;position:sticky;top:0;z-index:5}
   nav button{background:none;border:none;border-bottom:3px solid transparent;padding:14px 16px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer}
   nav button.active{color:var(--navy);border-bottom-color:var(--amber)}
   main{padding:24px 32px;max-width:1400px;margin:0 auto} section{display:none} section.active{display:block}
@@ -61,13 +73,9 @@
 </head>
 <body>
 <header>
-  <div><h1>E-commerce Customer Analytics</h1><div class="sub">Interactive dashboard · Jan 2024 – Jun 2025 · Sak</div></div>
-  <div class="filters">
-    <label>Country <select id="fCountry"><option value="">All</option></select></label>
-    <label>Segment <select id="fSegment"><option value="">All</option></select></label>
-    <label>Category <select id="fCategory"><option value="">All</option></select></label>
-    <button id="reset">Reset</button>
-  </div>
+  <div class="brand"><div class="mark">EC</div>
+    <div><h1>E-commerce Customer Analytics</h1><div class="sub">Interactive dashboard · Orders Jan 2024 – Jun 2025 · Prepared by Sak</div></div></div>
+  <div class="meta"><span>1,972 clean orders</span><span>721 customers</span><span>7 markets</span></div>
 </header>
 <nav>
   <button data-tab="overview" class="active">Overview</button>
@@ -77,6 +85,15 @@
   <button data-tab="findings">Findings</button>
   <button data-tab="demo">Demo guide</button>
 </nav>
+<div class="toolbar">
+  <div class="toolbar-inner">
+    <div class="tb-title">Filters</div>
+    <div class="field"><label for="fCountry">Country</label><select id="fCountry"><option value="">All countries</option></select></div>
+    <div class="field"><label for="fSegment">Customer segment</label><select id="fSegment"><option value="">All segments</option></select></div>
+    <div class="field"><label for="fCategory">Product category</label><select id="fCategory"><option value="">All categories</option></select></div>
+    <div class="tb-right"><div id="active" class="active-chips"></div><button id="reset" class="btn">Reset filters</button></div>
+  </div>
+</div>
 <main>
 <section id="overview" class="active">
   <div class="kpis" id="kpis"></div>
@@ -224,6 +241,7 @@ const bar=(labels,data,color,opts={})=>({type:'bar',data:{labels,datasets:[{data
 function render(){
   const fc=fCountry.value, fs=fSegment.value, fk=fCategory.value;
   const rows=ALL.filter(r=>(!fc||r[C.country]===fc)&&(!fs||r[C.customer_segment]===fs)&&(!fk||r[C.product_category]===fk));
+  active.innerHTML=[fc,fs,fk].filter(Boolean).map(v=>`<span class="chip">${v}</span>`).join('')||'<span style="font-size:12px;color:var(--muted)">Showing all orders</span>'; reset.disabled=!(fc||fs||fk);
   const n=rows.length; if(!n){kpis.innerHTML='<div class="kpi"><div class="v">0</div><div class="l">no orders match</div></div>';return;}
   const rev=sum(rows,'net_revenue'), cust=nuniq(rows,'customer_id');
   const ret=rows.filter(r=>r[C.order_status]==='Returned').length/n, canc=rows.filter(r=>r[C.order_status]==='Cancelled').length/n;
