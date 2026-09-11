@@ -357,7 +357,7 @@ function palette(){
 }
 function chartDefaults(){
   Chart.defaults.font.family='Calibri, "Segoe UI", system-ui, sans-serif'; Chart.defaults.font.size=13.5; Chart.defaults.color=P.tick;
-  Chart.defaults.animation={duration:900,easing:'easeOutQuart'}; Chart.defaults.transitions.active.animation.duration=250;
+  Chart.defaults.animation={duration:600,easing:'easeOutQuart'}; Chart.defaults.transitions.active.animation.duration=250;
   Chart.defaults.plugins.tooltip={...Chart.defaults.plugins.tooltip,backgroundColor:P.tip,titleColor:'#fff',bodyColor:'#E5E7EB',
     padding:11,cornerRadius:8,displayColors:false,titleFont:{weight:'700',size:13.5},bodyFont:{size:13}};
   Chart.defaults.plugins.legend.labels={...Chart.defaults.plugins.legend.labels,usePointStyle:true,pointStyle:'rectRounded',boxWidth:11,padding:16,font:{size:12.5},color:P.tick};
@@ -406,6 +406,7 @@ function kpiRow(el,items,tag){
   items.forEach((k,i)=>{const c=el.children[i];countUp(c.querySelector('.v'),k[1],k[2]);c.querySelector('.s').textContent=k[4];});
 }
 
+let TAB='overview';
 function render(){
   const fc=fCountry.value, fs=fSegment.value, fk=fCategory.value;
   const rows=ALL.filter(r=>(!fc||r[C.country]===fc)&&(!fs||r[C.customer_segment]===fs)&&(!fk||r[C.product_category]===fk));
@@ -414,150 +415,158 @@ function render(){
   const n=rows.length;
   scopeCount.textContent = n===ALL.length ? '· full dataset' : `· ${n.toLocaleString()} of ${ALL.length.toLocaleString()} orders (${pct(n/ALL.length)})`;
   if(!n){kpis.innerHTML='<div class="kpi"><div class="l">No match</div><div class="v">0</div><div class="s">widen the filters</div></div>';kpis2.innerHTML='';return;}
-
   const rev=sum(rows,'net_revenue'), cust=nuniq(rows,'customer_id');
-  const ret=rows.filter(r=>r[C.order_status]==='Returned').length/n, canc=rows.filter(r=>r[C.order_status]==='Cancelled').length/n;
-  const rated=rows.filter(r=>r[C.review_rating]!=null);
-  const amounts=rows.map(r=>r[C.total_amount]).sort((a,b)=>a-b); const median=amounts[Math.floor(n/2)];
 
-  kpiRow(kpis,[['Orders',n,v=>Math.round(v).toLocaleString(),'','valid orders in view'],
-    ['Net revenue',rev,fmt$,'','delivered orders only'],
-    ['Avg order value',mean(rows,'total_amount'),fmt$,'','mean of total_amount'],
-    ['Median order value',median,fmt$,'','the typical order']],'a');
+  // ---------- OVERVIEW tab ----------
+  if(TAB==='overview'){
+    const ret=rows.filter(r=>r[C.order_status]==='Returned').length/n, canc=rows.filter(r=>r[C.order_status]==='Cancelled').length/n;
+    const amounts=rows.map(r=>r[C.total_amount]).sort((a,b)=>a-b); const median=amounts[Math.floor(n/2)];
+    kpiRow(kpis,[['Orders',n,v=>Math.round(v).toLocaleString(),'','valid orders in view'],
+      ['Net revenue',rev,fmt$,'','delivered orders only'],
+      ['Avg order value',mean(rows,'total_amount'),fmt$,'','mean of total_amount'],
+      ['Median order value',median,fmt$,'','the typical order']],'a');
 
-  const gc=grp(rows,'product_category');
-  const cats=CATS.filter(c=>gc.has(c)).map(c=>[c,sum(gc.get(c),'net_revenue')]).sort((a,b)=>b[1]-a[1]);
-  mk('cCat',bar(cats.map(c=>c[0]),cats.map(c=>c[1]/1000),P.navy,{fmt:v=>'$'+v.toFixed(1)+'k',tick:v=>'$'+v+'k',xt:'Product category',yt:'Net revenue (USD thousands)'}));
-  const top=cats[0]; let cum=0,k80=0; for(const c of cats){cum+=c[1];k80++;if(cum/rev>=0.8)break;}
-  iCat.innerHTML=`<b>Interpretation</b> ${top[0]} leads with ${fmt$(top[1])} — ${pct(top[1]/rev)} of net revenue in this view. The top ${k80} categor${k80>1?'ies':'y'} together account for at least 80 %.`;
+    const gc=grp(rows,'product_category');
+    const cats=CATS.filter(c=>gc.has(c)).map(c=>[c,sum(gc.get(c),'net_revenue')]).sort((a,b)=>b[1]-a[1]);
+    mk('cCat',bar(cats.map(c=>c[0]),cats.map(c=>c[1]/1000),P.navy,{fmt:v=>'$'+v.toFixed(1)+'k',tick:v=>'$'+v+'k',xt:'Product category',yt:'Net revenue (USD thousands)'}));
+    const top=cats[0]; let cum=0,k80=0; for(const c of cats){cum+=c[1];k80++;if(cum/rev>=0.8)break;}
+    iCat.innerHTML=`<b>Interpretation</b> ${top[0]} leads with ${fmt$(top[1])} — ${pct(top[1]/rev)} of net revenue in this view. The top ${k80} categor${k80>1?'ies':'y'} together account for at least 80 %.`;
 
-  const gm=grp(rows,'order_month'); const months=[...gm.keys()].sort();
-  mk('cMonth',{type:'bar',data:{labels:months.map(mlabel),datasets:[
-      {type:'line',label:'Net revenue (USD k)',data:months.map(m=>sum(gm.get(m),'net_revenue')/1000),borderColor:P.navy,backgroundColor:P.navy,yAxisID:'y1',tension:.3,pointRadius:3.5,pointHoverRadius:6,borderWidth:2.5},
-      {type:'bar',label:'Orders',data:months.map(m=>gm.get(m).length),backgroundColor:P.ice,hoverBackgroundColor:P.amber,yAxisID:'y',borderRadius:4}]},
-    options:base({interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom'},
-      tooltip:{displayColors:true,callbacks:{label:c=>c.dataset.label+': '+(c.datasetIndex===0?'$'+c.raw.toFixed(1)+'k':c.raw)}}},
-      scales:{x:{grid:{display:false},title:{text:'Month'}},y:{position:'left',beginAtZero:true,title:{text:'Orders'}},
-        y1:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},title:{text:'Net revenue (USD k)'},ticks:{callback:v=>'$'+v+'k'}}}})});
+    const gm=grp(rows,'order_month'); const months=[...gm.keys()].sort();
+    mk('cMonth',{type:'bar',data:{labels:months.map(mlabel),datasets:[
+        {type:'line',label:'Net revenue (USD k)',data:months.map(m=>sum(gm.get(m),'net_revenue')/1000),borderColor:P.navy,backgroundColor:P.navy,yAxisID:'y1',tension:.3,pointRadius:3.5,pointHoverRadius:6,borderWidth:2.5},
+        {type:'bar',label:'Orders',data:months.map(m=>gm.get(m).length),backgroundColor:P.ice,hoverBackgroundColor:P.amber,yAxisID:'y',borderRadius:4}]},
+      options:base({interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom'},
+        tooltip:{displayColors:true,callbacks:{label:c=>c.dataset.label+': '+(c.datasetIndex===0?'$'+c.raw.toFixed(1)+'k':c.raw)}}},
+        scales:{x:{grid:{display:false},title:{text:'Month'}},y:{position:'left',beginAtZero:true,title:{text:'Orders'}},
+          y1:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},title:{text:'Net revenue (USD k)'},ticks:{callback:v=>'$'+v+'k'}}}})});
 
-  const edges=[0,25,50,75,100,150,200,300,400,600,1000,2000];
-  const hc=edges.slice(0,-1).map((e,i)=>amounts.filter(a=>a>=e&&a<edges[i+1]).length);
-  mk('cHist',bar(edges.slice(0,-1).map((e,i)=>`$${e}–${edges[i+1]}`),hc,P.blue,{fmt:v=>v,xt:'Order value band (USD)',yt:'Number of orders'}));
-  iHist.innerHTML=`<b>Interpretation</b> Right-skewed: the mean (${fmt$(mean(rows,'total_amount'))}) sits well above the median (${fmt$(median)}). Most orders are under $150, and a long tail of large Electronics orders pulls the mean up — so the median is the better "typical order".`;
+    const edges=[0,25,50,75,100,150,200,300,400,600,1000,2000];
+    const hc=edges.slice(0,-1).map((e,i)=>amounts.filter(a=>a>=e&&a<edges[i+1]).length);
+    mk('cHist',bar(edges.slice(0,-1).map((e,i)=>`$${e}–${edges[i+1]}`),hc,P.blue,{fmt:v=>v,xt:'Order value band (USD)',yt:'Number of orders'}));
+    iHist.innerHTML=`<b>Interpretation</b> Right-skewed: the mean (${fmt$(mean(rows,'total_amount'))}) sits well above the median (${fmt$(median)}). Most orders are under $150, and a long tail of large Electronics orders pulls the mean up — so the median is the better "typical order".`;
 
-  const st=['Delivered','Returned','Cancelled'].map(s=>rows.filter(r=>r[C.order_status]===s).length);
-  mk('cStatus',{type:'doughnut',data:{labels:['Delivered','Returned','Cancelled'].map((l,i)=>`${l} · ${pct(st[i]/n)}`),
-      datasets:[{data:st,backgroundColor:[P.teal,P.red,P.amber],borderWidth:2,borderColor:P.surface,hoverOffset:8}]},
-    options:base({cutout:'62%',plugins:{legend:{position:'right'},tooltip:{callbacks:{label:c=>c.raw.toLocaleString()+' orders'}}}})});
-  iStatus.innerHTML=`<b>Interpretation</b> ${pct(ret+canc)} of orders end returned or cancelled and generate no net revenue — roughly ${fmt$(sum(rows.filter(r=>r[C.order_status]!=='Delivered'),'total_amount'))} of refunded value in this view.`;
+    const st=['Delivered','Returned','Cancelled'].map(x=>rows.filter(r=>r[C.order_status]===x).length);
+    mk('cStatus',{type:'doughnut',data:{labels:['Delivered','Returned','Cancelled'].map((l,i)=>`${l} · ${pct(st[i]/n)}`),
+        datasets:[{data:st,backgroundColor:[P.teal,P.red,P.amber],borderWidth:2,borderColor:P.surface,hoverOffset:8}]},
+      options:base({cutout:'62%',plugins:{legend:{position:'right'},tooltip:{callbacks:{label:c=>c.raw.toLocaleString()+' orders'}}}})});
+    iStatus.innerHTML=`<b>Interpretation</b> ${pct(ret+canc)} of orders end returned or cancelled and generate no net revenue — roughly ${fmt$(sum(rows.filter(r=>r[C.order_status]!=='Delivered'),'total_amount'))} of refunded value in this view.`;
+  }
 
-  const last=new Map(); rows.forEach(r=>{const c=r[C.customer_id],d=r[C.order_date];if(!last.has(c)||d>last.get(c))last.set(c,d);});
-  const snap=new Date('2025-07-01'); let hi=0,me=0,lo=0;
-  last.forEach(d=>{const days=(snap-new Date(d))/864e5; if(days>180)hi++; else if(days>90)me++; else lo++;});
-  const ord=new Map(); rows.forEach(r=>{const c=r[C.customer_id];ord.set(c,(ord.get(c)||0)+1);});
-  const repeat=[...ord.values()].filter(v=>v>1).length/ord.size;
-  const spend=new Map(); rows.forEach(r=>{const c=r[C.customer_id];spend.set(c,(spend.get(c)||0)+r[C.net_revenue]);});
-  const sortedSpend=[...spend.values()].sort((a,b)=>b-a);
-  const top20=sortedSpend.slice(0,Math.max(1,Math.round(sortedSpend.length*0.2))).reduce((a,b)=>a+b,0)/(rev||1);
+  // ---------- CUSTOMERS & SERVICE tab ----------
+  if(TAB==='customers'){
+    const rated=rows.filter(r=>r[C.review_rating]!=null);
+    const last=new Map(); rows.forEach(r=>{const c=r[C.customer_id],d=r[C.order_date];if(!last.has(c)||d>last.get(c))last.set(c,d);});
+    const snap=new Date('2025-07-01'); let hi=0,me=0,lo=0;
+    last.forEach(d=>{const days=(snap-new Date(d))/864e5; if(days>180)hi++; else if(days>90)me++; else lo++;});
+    const ord=new Map(); rows.forEach(r=>{const c=r[C.customer_id];ord.set(c,(ord.get(c)||0)+1);});
+    const repeat=[...ord.values()].filter(v=>v>1).length/ord.size;
+    const spend=new Map(); rows.forEach(r=>{const c=r[C.customer_id];spend.set(c,(spend.get(c)||0)+r[C.net_revenue]);});
+    const sortedSpend=[...spend.values()].sort((a,b)=>b-a);
+    const top20=sortedSpend.slice(0,Math.max(1,Math.round(sortedSpend.length*0.2))).reduce((a,b)=>a+b,0)/(rev||1);
 
-  const rd=rated.filter(r=>r[C.delivery_days]!=null);
-  const xs=rd.map(r=>r[C.delivery_days]), ys=rd.map(r=>r[C.review_rating]);
-  const mx=xs.reduce((a,b)=>a+b,0)/(xs.length||1), my=ys.reduce((a,b)=>a+b,0)/(ys.length||1);
-  let sxy=0,sxx=0,syy=0; xs.forEach((x,i)=>{sxy+=(x-mx)*(ys[i]-my);sxx+=(x-mx)**2;syy+=(ys[i]-my)**2;});
-  const rcorr=(sxx&&syy)?sxy/Math.sqrt(sxx*syy):0;
+    const rd=rated.filter(r=>r[C.delivery_days]!=null);
+    const xs=rd.map(r=>r[C.delivery_days]), ys=rd.map(r=>r[C.review_rating]);
+    const mx=xs.reduce((a,b)=>a+b,0)/(xs.length||1), my=ys.reduce((a,b)=>a+b,0)/(ys.length||1);
+    let sxy=0,sxx=0,syy=0; xs.forEach((x,i)=>{sxy+=(x-mx)*(ys[i]-my);sxx+=(x-mx)**2;syy+=(ys[i]-my)**2;});
+    const rcorr=(sxx&&syy)?sxy/Math.sqrt(sxx*syy):0;
 
-  kpiRow(kpis2,[['Customers',cust,v=>Math.round(v).toLocaleString(),'','unique customer_id'],
-    ['Repeat rate',repeat,pct,'good','ordered more than once'],
-    ['Dormant > 180 days',hi/cust,pct,'warn','win-back target'],
-    ['Delivery ↔ rating',rcorr,v=>v.toFixed(2),'','Pearson r · '+rd.length.toLocaleString()+' reviews']],'b');
+    kpiRow(kpis2,[['Customers',cust,v=>Math.round(v).toLocaleString(),'','unique customer_id'],
+      ['Repeat rate',repeat,pct,'good','ordered more than once'],
+      ['Dormant > 180 days',hi/cust,pct,'warn','win-back target'],
+      ['Delivery ↔ rating',rcorr,v=>v.toFixed(2),'','Pearson r · '+rd.length.toLocaleString()+' reviews']],'b');
 
-  const segs=['New','Regular','VIP'].filter(s=>rows.some(r=>r[C.customer_segment]===s)); const gs=grp(rows,'customer_segment');
-  const opc=segs.map(s=>gs.get(s).length/nuniq(gs.get(s),'customer_id'));
-  const aov=segs.map(s=>mean(gs.get(s),'total_amount'));
-  const rpc=segs.map(s=>sum(gs.get(s),'net_revenue')/nuniq(gs.get(s),'customer_id'));
-  mk('cSeg',{type:'bar',data:{labels:segs,datasets:[
-      {label:'Orders per customer',data:opc,backgroundColor:P.amber,yAxisID:'y',borderRadius:6,maxBarThickness:58},
-      {label:'Average order value (USD)',data:aov,backgroundColor:P.navy,yAxisID:'y1',borderRadius:6,maxBarThickness:58}]},
-    options:base({plugins:{legend:{position:'bottom'},vl:{fmt:(v,i)=>i?'$'+Math.round(v):v.toFixed(1)},
-      tooltip:{displayColors:true,callbacks:{label:c=>c.dataset.label+': '+(c.datasetIndex?fmt$(c.raw):c.raw.toFixed(2))}}},
-      scales:{x:{grid:{display:false},title:{text:'Customer segment'}},y:{beginAtZero:true,grace:'18%',title:{text:'Orders per customer'}},
-        y1:{position:'right',beginAtZero:true,grace:'18%',grid:{drawOnChartArea:false},title:{text:'Average order value (USD)'},ticks:{callback:v=>'$'+v}}}})});
-  iSeg.innerHTML=segs.length>1
-    ? `<b>Interpretation</b> ${segs[segs.length-1]} customers place ${opc[opc.length-1].toFixed(1)} orders each versus ${opc[0].toFixed(1)} for ${segs[0]}, while average order value stays flat (${aov.map(fmt$).join(' / ')}). Lifetime value (${rpc.map(fmt$).join(' / ')}) comes from frequency, not bigger baskets.`
-    : `<b>Interpretation</b> Single segment in view: ${opc[0].toFixed(1)} orders per customer, ${fmt$(aov[0])} average order value, ${fmt$(rpc[0])} revenue per customer.`;
+    const segs=['New','Regular','VIP'].filter(x=>rows.some(r=>r[C.customer_segment]===x)); const gs=grp(rows,'customer_segment');
+    const opc=segs.map(x=>gs.get(x).length/nuniq(gs.get(x),'customer_id'));
+    const aov=segs.map(x=>mean(gs.get(x),'total_amount'));
+    const rpc=segs.map(x=>sum(gs.get(x),'net_revenue')/nuniq(gs.get(x),'customer_id'));
+    mk('cSeg',{type:'bar',data:{labels:segs,datasets:[
+        {label:'Orders per customer',data:opc,backgroundColor:P.amber,yAxisID:'y',borderRadius:6,maxBarThickness:58},
+        {label:'Average order value (USD)',data:aov,backgroundColor:P.navy,yAxisID:'y1',borderRadius:6,maxBarThickness:58}]},
+      options:base({plugins:{legend:{position:'bottom'},vl:{fmt:(v,i)=>i?'$'+Math.round(v):v.toFixed(1)},
+        tooltip:{displayColors:true,callbacks:{label:c=>c.dataset.label+': '+(c.datasetIndex?fmt$(c.raw):c.raw.toFixed(2))}}},
+        scales:{x:{grid:{display:false},title:{text:'Customer segment'}},y:{beginAtZero:true,grace:'18%',title:{text:'Orders per customer'}},
+          y1:{position:'right',beginAtZero:true,grace:'18%',grid:{drawOnChartArea:false},title:{text:'Average order value (USD)'},ticks:{callback:v=>'$'+v}}}})});
+    iSeg.innerHTML=segs.length>1
+      ? `<b>Interpretation</b> ${segs[segs.length-1]} customers place ${opc[opc.length-1].toFixed(1)} orders each versus ${opc[0].toFixed(1)} for ${segs[0]}, while average order value stays flat (${aov.map(fmt$).join(' / ')}). Lifetime value (${rpc.map(fmt$).join(' / ')}) comes from frequency, not bigger baskets.`
+      : `<b>Interpretation</b> Single segment in view: ${opc[0].toFixed(1)} orders per customer, ${fmt$(aov[0])} average order value, ${fmt$(rpc[0])} revenue per customer.`;
 
-  mk('cChurn',{type:'doughnut',data:{labels:[`High · >180 days · ${pct(hi/cust)}`,`Medium · 91–180 days · ${pct(me/cust)}`,`Low · ≤90 days · ${pct(lo/cust)}`],
-      datasets:[{data:[hi,me,lo],backgroundColor:[P.red,P.amber,P.teal],borderWidth:2,borderColor:P.surface,hoverOffset:8}]},
-    options:base({cutout:'62%',plugins:{legend:{position:'right'},tooltip:{callbacks:{label:c=>c.raw.toLocaleString()+' customers'}}}})});
-  iChurn.innerHTML=`<b>Interpretation</b> ${pct(repeat)} of these ${cust.toLocaleString()} customers have ordered more than once and the top 20 % account for ${pct(top20)} of revenue — but ${pct(hi/cust)} have not ordered in over 180 days (snapshot 1 Jul 2025). That dormant group is the win-back target in R2.`;
+    mk('cChurn',{type:'doughnut',data:{labels:[`High · >180 days · ${pct(hi/cust)}`,`Medium · 91–180 days · ${pct(me/cust)}`,`Low · ≤90 days · ${pct(lo/cust)}`],
+        datasets:[{data:[hi,me,lo],backgroundColor:[P.red,P.amber,P.teal],borderWidth:2,borderColor:P.surface,hoverOffset:8}]},
+      options:base({cutout:'62%',plugins:{legend:{position:'right'},tooltip:{callbacks:{label:c=>c.raw.toLocaleString()+' customers'}}}})});
+    iChurn.innerHTML=`<b>Interpretation</b> ${pct(repeat)} of these ${cust.toLocaleString()} customers have ordered more than once and the top 20 % account for ${pct(top20)} of revenue — but ${pct(hi/cust)} have not ordered in over 180 days (snapshot 1 Jul 2025). That dormant group is the win-back target in R2.`;
 
-  const gco=grp(rows,'country');
-  const cos=[...gco.entries()].map(([k,v])=>[k,sum(v,'net_revenue'),nuniq(v,'customer_id')]).sort((a,b)=>b[1]-a[1]);
-  mk('cCountry',bar(cos.map(c=>c[0]),cos.map(c=>c[1]/1000),P.navy,{fmt:v=>'$'+v.toFixed(1)+'k',
-    extra:{indexAxis:'y',scales:{x:{beginAtZero:true,grace:'15%',title:{text:'Net revenue (USD thousands)'},ticks:{callback:v=>'$'+v+'k'}},
-      y:{grid:{display:false},title:{text:'Country'}}}}}));
-  iCountry.innerHTML=`<b>Interpretation</b> ${cos[0][0]} leads with ${pct(cos[0][1]/rev)} of revenue from ${cos[0][2]} customers — ${fmt$(cos[0][1]/cos[0][2])} each.`;
+    const gco=grp(rows,'country');
+    const cos=[...gco.entries()].map(([k,v])=>[k,sum(v,'net_revenue'),nuniq(v,'customer_id')]).sort((a,b)=>b[1]-a[1]);
+    mk('cCountry',bar(cos.map(c=>c[0]),cos.map(c=>c[1]/1000),P.navy,{fmt:v=>'$'+v.toFixed(1)+'k',
+      extra:{indexAxis:'y',scales:{x:{beginAtZero:true,grace:'15%',title:{text:'Net revenue (USD thousands)'},ticks:{callback:v=>'$'+v+'k'}},
+        y:{grid:{display:false},title:{text:'Country'}}}}}));
+    iCountry.innerHTML=`<b>Interpretation</b> ${cos[0][0]} leads with ${pct(cos[0][1]/rev)} of revenue from ${cos[0][2]} customers — ${fmt$(cos[0][1]/cos[0][2])} each.`;
 
-  const gch=grp(rows,'acquisition_channel');
-  const chs=[...gch.entries()].map(([k,v])=>[k,sum(v,'net_revenue')/nuniq(v,'customer_id')]).sort((a,b)=>b[1]-a[1]);
-  const avgRpc=rev/cust;
-  mk('cChan',bar(chs.map(c=>c[0]),chs.map(c=>c[1]),chs.map(c=>c[1]<avgRpc*0.85?P.red:P.amber),
-    {fmt:v=>fmt$(v),tick:v=>'$'+v,xt:'Acquisition channel',yt:'Net revenue per customer (USD)'}));
-  const worst=chs[chs.length-1];
-  iChan.innerHTML=`<b>Interpretation</b> Average revenue per customer is ${fmt$(avgRpc)}. ${worst[0]} is the weakest at ${fmt$(worst[1])} (${((worst[1]/avgRpc-1)*100).toFixed(0)} % versus average, shown in red); ${chs[0][0]} is the strongest at ${fmt$(chs[0][1])}.`;
+    const gch=grp(rows,'acquisition_channel');
+    const chs=[...gch.entries()].map(([k,v])=>[k,sum(v,'net_revenue')/nuniq(v,'customer_id')]).sort((a,b)=>b[1]-a[1]);
+    const avgRpc=rev/cust;
+    mk('cChan',bar(chs.map(c=>c[0]),chs.map(c=>c[1]),chs.map(c=>c[1]<avgRpc*0.85?P.red:P.amber),
+      {fmt:v=>fmt$(v),tick:v=>'$'+v,xt:'Acquisition channel',yt:'Net revenue per customer (USD)'}));
+    const worst=chs[chs.length-1];
+    iChan.innerHTML=`<b>Interpretation</b> Average revenue per customer is ${fmt$(avgRpc)}. ${worst[0]} is the weakest at ${fmt$(worst[1])} (${((worst[1]/avgRpc-1)*100).toFixed(0)} % versus average, shown in red); ${chs[0][0]} is the strongest at ${fmt$(chs[0][1])}.`;
 
-  const ages=['18-24','25-34','35-44','45-54','55+'], pays=['Credit Card','E-Wallet','Bank Transfer','Cash on Delivery','PayPal'];
-  const ga=grp(rows,'age_group');
-  mk('cPay',{type:'bar',data:{labels:ages,datasets:pays.map((p,i)=>({label:p,
-      data:ages.map(a=>{const g=ga.get(a)||[];return g.length?100*g.filter(r=>r[C.payment_method]===p).length/g.length:0;}),
-      backgroundColor:P.set[i],borderRadius:3,maxBarThickness:44}))},
-    options:base({indexAxis:'y',interaction:{mode:'index'},plugins:{legend:{position:'bottom'},
-      tooltip:{displayColors:true,callbacks:{label:c=>c.dataset.label+': '+c.raw.toFixed(1)+' %'}}},
-      scales:{x:{stacked:true,max:100,title:{text:'Share of orders (%)'},ticks:{callback:v=>v+' %'}},
-        y:{stacked:true,grid:{display:false},title:{text:'Age group'}}}})});
+    const ages=['18-24','25-34','35-44','45-54','55+'], pays=['Credit Card','E-Wallet','Bank Transfer','Cash on Delivery','PayPal'];
+    const ga=grp(rows,'age_group');
+    mk('cPay',{type:'bar',data:{labels:ages,datasets:pays.map((pp,i)=>({label:pp,
+        data:ages.map(a=>{const g=ga.get(a)||[];return g.length?100*g.filter(r=>r[C.payment_method]===pp).length/g.length:0;}),
+        backgroundColor:P.set[i],borderRadius:3,maxBarThickness:44}))},
+      options:base({indexAxis:'y',interaction:{mode:'index'},plugins:{legend:{position:'bottom'},
+        tooltip:{displayColors:true,callbacks:{label:c=>c.dataset.label+': '+c.raw.toFixed(1)+' %'}}},
+        scales:{x:{stacked:true,max:100,title:{text:'Share of orders (%)'},ticks:{callback:v=>v+' %'}},
+          y:{stacked:true,grid:{display:false},title:{text:'Age group'}}}})});
 
-  const bands=[['1–3 days',0,3],['4–6 days',3,6],['7–9 days',6,9],['10+ days',9,99]];
-  const bm=bands.map(b=>{const g=rd.filter(x=>x[C.delivery_days]>b[1]&&x[C.delivery_days]<=b[2]);return [b[0],mean(g,'review_rating'),g.length];});
-  mk('cDeliv',{type:'bar',data:{labels:bm.map(b=>b[0]),datasets:[{data:bm.map(b=>b[1]),
-      backgroundColor:[P.teal,P.mint,P.amber,P.red],borderRadius:6,maxBarThickness:70}]},
-    options:base({plugins:{legend:{display:false},vl:{fmt:v=>v.toFixed(2)+' ★'},
-      tooltip:{callbacks:{label:c=>c.raw.toFixed(2)+' ★  ·  '+bm[c.dataIndex][2]+' reviews'}}},
-      scales:{x:{grid:{display:false},title:{text:'Delivery time band'}},y:{min:0,max:5,title:{text:'Mean review rating (1–5 ★)'}}}})});
-  iDeliv.innerHTML=`<b>Interpretation</b> Mean rating falls from ${bm[0][1].toFixed(2)}★ for 1–3-day delivery to ${bm[3][1].toFixed(2)}★ beyond ten days. Pearson r = ${rcorr.toFixed(2)} across ${rd.length.toLocaleString()} reviewed orders — the clearest lever on satisfaction in the data (objective O3).`;
+    const bands=[['1–3 days',0,3],['4–6 days',3,6],['7–9 days',6,9],['10+ days',9,99]];
+    const bm=bands.map(b=>{const g=rd.filter(x=>x[C.delivery_days]>b[1]&&x[C.delivery_days]<=b[2]);return [b[0],mean(g,'review_rating'),g.length];});
+    mk('cDeliv',{type:'bar',data:{labels:bm.map(b=>b[0]),datasets:[{data:bm.map(b=>b[1]),
+        backgroundColor:[P.teal,P.mint,P.amber,P.red],borderRadius:6,maxBarThickness:70}]},
+      options:base({plugins:{legend:{display:false},vl:{fmt:v=>v.toFixed(2)+' ★'},
+        tooltip:{callbacks:{label:c=>c.raw.toFixed(2)+' ★  ·  '+bm[c.dataIndex][2]+' reviews'}}},
+        scales:{x:{grid:{display:false},title:{text:'Delivery time band'}},y:{min:0,max:5,title:{text:'Mean review rating (1–5 ★)'}}}})});
+    iDeliv.innerHTML=`<b>Interpretation</b> Mean rating falls from ${bm[0][1].toFixed(2)}★ for 1–3-day delivery to ${bm[3][1].toFixed(2)}★ beyond ten days. Pearson r = ${rcorr.toFixed(2)} across ${rd.length.toLocaleString()} reviewed orders — the clearest lever on satisfaction in the data (objective O3).`;
 
-  const cnt=new Map(); rd.forEach(rr=>{const k=rr[C.delivery_days]+'|'+rr[C.review_rating];cnt.set(k,(cnt.get(k)||0)+1);});
-  const slope=sxx?sxy/sxx:0, icpt=my-slope*mx;
-  mk('cScatter',{type:'bubble',data:{datasets:[
-      {label:'Reviews',data:[...cnt.entries()].map(([k,v])=>{const p=k.split('|');return{x:+p[0],y:+p[1],r:Math.sqrt(v)*2.2};}),
-       backgroundColor:P.bubble,borderColor:P.blue,borderWidth:1},
-      {type:'line',label:'Trend · r = '+rcorr.toFixed(2),data:[{x:1,y:icpt+slope},{x:11,y:icpt+slope*11}],
-       borderColor:P.red,borderWidth:2.5,borderDash:[6,4],pointRadius:0}]},
-    options:base({plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:c=>c.datasetIndex?'':`${c.raw.x} days → ${c.raw.y} ★  ·  ${Math.round((c.raw.r/2.2)**2)} reviews`}}},
-      scales:{x:{min:0,max:12,title:{text:'Delivery time (days)'},grid:{display:false},ticks:{stepSize:1}},
-        y:{min:0.5,max:5.5,ticks:{stepSize:1,callback:v=>v+' ★'},title:{text:'Review rating'}}}})});
+    const cnt=new Map(); rd.forEach(rr=>{const k=rr[C.delivery_days]+'|'+rr[C.review_rating];cnt.set(k,(cnt.get(k)||0)+1);});
+    const slope=sxx?sxy/sxx:0, icpt=my-slope*mx;
+    mk('cScatter',{type:'bubble',data:{datasets:[
+        {label:'Reviews',data:[...cnt.entries()].map(([k,v])=>{const pr=k.split('|');return{x:+pr[0],y:+pr[1],r:Math.sqrt(v)*2.2};}),
+         backgroundColor:P.bubble,borderColor:P.blue,borderWidth:1},
+        {type:'line',label:'Trend · r = '+rcorr.toFixed(2),data:[{x:1,y:icpt+slope},{x:11,y:icpt+slope*11}],
+         borderColor:P.red,borderWidth:2.5,borderDash:[6,4],pointRadius:0}]},
+      options:base({plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:c=>c.datasetIndex?'':`${c.raw.x} days → ${c.raw.y} ★  ·  ${Math.round((c.raw.r/2.2)**2)} reviews`}}},
+        scales:{x:{min:0,max:12,title:{text:'Delivery time (days)'},grid:{display:false},ticks:{stepSize:1}},
+          y:{min:0.5,max:5.5,ticks:{stepSize:1,callback:v=>v+' ★'},title:{text:'Review rating'}}}})});
 
-  const rc=CATS.filter(c=>gc.has(c)).map(c=>[c,gc.get(c).filter(x=>x[C.order_status]==='Returned').length/gc.get(c).length]).sort((a,b)=>b[1]-a[1]);
-  mk('cRet',bar(rc.map(c=>c[0]),rc.map(c=>c[1]*100),rc.map((c,i)=>i===0?P.red:P.navy),
-    {fmt:v=>v.toFixed(1)+' %',tick:v=>v+' %',xt:'Product category',yt:'Return rate (% of orders)'}));
-  iRet.innerHTML=`<b>Interpretation</b> ${rc[0][0]} is returned most often (${pct(rc[0][1])}), ${rc[rc.length-1][0]} least (${pct(rc[rc.length-1][1])}). The chi-square test across categories is not significant (p = 0.23), so treat the ranking as indicative rather than proven.`;
+    const gc2=grp(rows,'product_category');
+    const rc=CATS.filter(c=>gc2.has(c)).map(c=>[c,gc2.get(c).filter(x=>x[C.order_status]==='Returned').length/gc2.get(c).length]).sort((a,b)=>b[1]-a[1]);
+    mk('cRet',bar(rc.map(c=>c[0]),rc.map(c=>c[1]*100),rc.map((c,i)=>i===0?P.red:P.navy),
+      {fmt:v=>v.toFixed(1)+' %',tick:v=>v+' %',xt:'Product category',yt:'Return rate (% of orders)'}));
+    iRet.innerHTML=`<b>Interpretation</b> ${rc[0][0]} is returned most often (${pct(rc[0][1])}), ${rc[rc.length-1][0]} least (${pct(rc[rc.length-1][1])}). The chi-square test across categories is not significant (p = 0.23), so treat the ranking as indicative rather than proven.`;
 
-  const rs=['Delivered','Returned'].map(s=>mean(rated.filter(x=>x[C.order_status]===s),'review_rating'));
-  const low=['Delivered','Returned'].map(s=>{const g=rated.filter(x=>x[C.order_status]===s);return g.length?g.filter(x=>x[C.review_rating]<=2).length/g.length:0;});
-  mk('cRateStatus',{type:'bar',data:{labels:['Delivered','Returned'],datasets:[
-      {label:'Mean rating (★)',data:rs,backgroundColor:[P.teal,P.red],borderRadius:6,maxBarThickness:80,yAxisID:'y'},
-      {label:'Share of 1–2 ★ reviews (%)',data:low.map(v=>v*100),backgroundColor:[P.softG,P.softR],borderRadius:6,maxBarThickness:80,yAxisID:'y1'}]},
-    options:base({plugins:{legend:{position:'bottom'},vl:{fmt:(v,i)=>i?v.toFixed(1)+' %':v.toFixed(2)+' ★'},
-      tooltip:{displayColors:true,callbacks:{label:c=>c.datasetIndex?'1–2 ★ share: '+c.raw.toFixed(1)+' %':'Mean rating: '+c.raw.toFixed(2)+' ★'}}},
-      scales:{x:{grid:{display:false},title:{text:'Order status'}},y:{min:0,max:5,title:{text:'Mean review rating (★)'}},
-        y1:{position:'right',min:0,max:100,grid:{drawOnChartArea:false},title:{text:'Share of 1–2 ★ reviews (%)'},ticks:{callback:v=>v+' %'}}}})});
-  iRateStatus.innerHTML=`<b>Interpretation</b> Delivered orders average ${rs[0].toFixed(2)}★ against ${rs[1].toFixed(2)}★ for returned ones, and ${pct(low[1])} of returned-order reviews are 1–2 stars versus ${pct(low[0])} of delivered ones. A return is a satisfaction event, not just a logistics cost.`;
+    const rs=['Delivered','Returned'].map(x=>mean(rated.filter(z=>z[C.order_status]===x),'review_rating'));
+    const low=['Delivered','Returned'].map(x=>{const g=rated.filter(z=>z[C.order_status]===x);return g.length?g.filter(z=>z[C.review_rating]<=2).length/g.length:0;});
+    mk('cRateStatus',{type:'bar',data:{labels:['Delivered','Returned'],datasets:[
+        {label:'Mean rating (★)',data:rs,backgroundColor:[P.teal,P.red],borderRadius:6,maxBarThickness:80,yAxisID:'y'},
+        {label:'Share of 1–2 ★ reviews (%)',data:low.map(v=>v*100),backgroundColor:[P.softG,P.softR],borderRadius:6,maxBarThickness:80,yAxisID:'y1'}]},
+      options:base({plugins:{legend:{position:'bottom'},vl:{fmt:(v,i)=>i?v.toFixed(1)+' %':v.toFixed(2)+' ★'},
+        tooltip:{displayColors:true,callbacks:{label:c=>c.datasetIndex?'1–2 ★ share: '+c.raw.toFixed(1)+' %':'Mean rating: '+c.raw.toFixed(2)+' ★'}}},
+        scales:{x:{grid:{display:false},title:{text:'Order status'}},y:{min:0,max:5,title:{text:'Mean review rating (★)'}},
+          y1:{position:'right',min:0,max:100,grid:{drawOnChartArea:false},title:{text:'Share of 1–2 ★ reviews (%)'},ticks:{callback:v=>v+' %'}}}})});
+    iRateStatus.innerHTML=`<b>Interpretation</b> Delivered orders average ${rs[0].toFixed(2)}★ against ${rs[1].toFixed(2)}★ for returned ones, and ${pct(low[1])} of returned-order reviews are 1–2 stars versus ${pct(low[0])} of delivered ones. A return is a satisfaction event, not just a logistics cost.`;
+  }
 }
 
 function showTab(name){
+  TAB=name;
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
-  document.querySelectorAll('section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('section').forEach(x=>x.classList.remove('active'));
   const sec=document.getElementById(name); void sec.offsetWidth; sec.classList.add('active');
-  requestAnimationFrame(()=>{sec.querySelectorAll('canvas').forEach(cv=>{const c=charts[cv.id];if(c){c.resize();c.reset();c.update();}});});
+  render();
+  requestAnimationFrame(()=>{sec.querySelectorAll('canvas').forEach(cv=>{const c=charts[cv.id];if(c)c.resize();});});
   window.scrollTo({top:0,behavior:'smooth'});
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
