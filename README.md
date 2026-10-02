@@ -55,7 +55,8 @@ ecommerce-customer-analytics/
 │   ├── project_report.docx                   # written report
 │   ├── presentation.pptx                     # slides for the live demo
 │   ├── dashboard.html                        # interactive offline dashboard: 4 tabs, filters, dark mode, demo guide
-│   └── notebook_export.html                  # static HTML export of the executed notebook (no kernel needed)
+│   ├── notebook_export.html                  # static HTML export of the executed notebook (no kernel needed)
+│   └── demo_notebook_script.md               # section-by-section speaking script for the live demo
 ├── README.md
 ├── LICENSE
 ├── requirements.txt
