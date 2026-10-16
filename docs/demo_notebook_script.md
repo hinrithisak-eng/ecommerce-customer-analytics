@@ -231,15 +231,16 @@ and mention the rest exist.
 ## Close with the live web app ⏱ 2.5 min  ← the memorable finish
 
 **Before the demo:** in a terminal run `python webapp/app.py --reset` (fresh data), leave it running, and
-open **two browser windows side by side**: left = `http://127.0.0.1:5000` (Overview),
+open **two browser windows side by side**: left = `http://127.0.0.1:5000` (Dashboard),
 right = `http://127.0.0.1:5000/orders/new` (New order).
 
-**SAY (left window, Overview):**
+**SAY (left window, Dashboard):**
 > "Everything you just saw in the notebook now runs as a web app on a real database. The cleaned CSV is
 > loaded into SQLite — customers and orders as two linked tables — and every number here is a SQL query
 > against it. 1,972 orders, $227,155 of net revenue — the same figures as the notebook."
 
-**DO:** Change **Country → Cambodia**, then **Clear filters**. Flip one chart to **Table** to show the numbers behind it.
+**DO:** Hover **Cambodia** on the Southeast Asia map, then change **Country → Cambodia**, then **Clear**.
+> "Our market is Southeast Asia, so revenue is mapped by country — Cambodia, Thailand and Vietnam bring in about 71 percent."
 > "Filters run new SQL queries — the KPIs and charts recompute live."
 
 **DO (right window):** type `C1122` in Customer ID — the customer details appear under the field. Fill in:
@@ -261,7 +262,7 @@ and submit.
 
 **Closing line:**
 > "So: a reproducible pipeline that cleans messy data, answers the business questions with Pandas and
-> statistics, and serves the results from a database as a live web app — with 39 automated tests and CI
+> statistics, and serves the results from a database as a live web app — with 40 automated tests and CI
 > checking all of it on every push. Happy to take questions."
 
 **After the demo:** click **Reset data** at the bottom of the sidebar (or rerun `python webapp/app.py --reset`)

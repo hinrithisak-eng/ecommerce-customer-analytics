@@ -23,25 +23,18 @@
 {% block content %}
 <header class="page-header">
   <div>
-    <div class="crumbs">Analytics</div>
-    <h1>{{ 'Overview' if view == 'overview' else 'Customers & service' }}</h1>
+    <h1>{{ 'Dashboard' if view == 'overview' else 'Customers & service' }}</h1>
     <div class="page-meta">{{ span[0].strftime('%b %Y') }} – {{ span[1].strftime('%b %Y') }} · <span id="scopeText">loading…</span></div>
   </div>
-  <div class="page-actions">
-    {% if view == 'overview' %}<a class="btn btn-primary" href="{{ url_for('order_new') }}">{{ icon('plus') }}New order</a>
-    {% else %}<a class="btn" href="{{ url_for('customers') }}">Customer records</a>{% endif %}
+  <div class="filterbar" role="search" style="margin:0">
+    <select id="fCountry" aria-label="Country"><option value="">All countries</option>{% for c in opts.countries %}<option>{{ c }}</option>{% endfor %}</select>
+    <select id="fSegment" aria-label="Segment"><option value="">All segments</option>{% for s in opts.segments %}<option>{{ s }}</option>{% endfor %}</select>
+    <select id="fCategory" aria-label="Category"><option value="">All categories</option>{% for c in opts.categories %}<option>{{ c }}</option>{% endfor %}</select>
+    <button class="btn btn-ghost" id="clear" type="button" disabled>Clear</button>
   </div>
 </header>
 
-<div class="filterbar" role="search">
-  <select id="fCountry" aria-label="Country"><option value="">All countries</option>{% for c in opts.countries %}<option>{{ c }}</option>{% endfor %}</select>
-  <select id="fSegment" aria-label="Segment"><option value="">All segments</option>{% for s in opts.segments %}<option>{{ s }}</option>{% endfor %}</select>
-  <select id="fCategory" aria-label="Category"><option value="">All categories</option>{% for c in opts.categories %}<option>{{ c }}</option>{% endfor %}</select>
-  <button class="btn btn-ghost" id="clear" type="button" disabled>Clear filters</button>
-</div>
-
 <div id="live">
-  <div class="kpis" id="kpis"></div>
   <div id="empty" hidden>
     <div class="card"><div class="empty-state" style="margin:48px auto">
       <h1>No orders match these filters</h1><p>Try a different country, segment or category.</p>
@@ -50,17 +43,70 @@
 
   <div id="cards">
   {% if view == 'overview' %}
-    <div class="grid">
-      {{ chart_card('cMonth', 'Net revenue by month', 'span-2', 'short') }}
-      {{ chart_card('cCat', 'Net revenue by category') }}
-      {{ plain_card('outcomes', 'Order outcomes') }}
-      {{ chart_card('cHist', 'Order value distribution', 'span-2', 'short') }}
+    <div class="dash">
+      <div class="c-9 stack">
+        <div class="kpis" id="kpis"></div>
+        <div class="dash">
+          <section class="card c-8" id="card-cMonth">
+            <div class="card-head">
+              <div><h3 class="card-title">Revenue analytics</h3><p class="card-sub" id="sub-cMonth">&nbsp;</p></div>
+              <div class="card-tools">
+                <div class="seg-control" id="measure" role="group" aria-label="Measure"><button type="button" aria-pressed="true" data-m="rev">Revenue</button><button type="button" aria-pressed="false" data-m="n">Orders</button></div>
+                <div class="seg-control" id="range" role="group" aria-label="Range"><button type="button" aria-pressed="false" data-r="6">6M</button><button type="button" aria-pressed="false" data-r="12">12M</button><button type="button" aria-pressed="true" data-r="0">All</button></div>
+              </div>
+            </div>
+            <div class="card-body"><div class="chart-box"><canvas id="cMonth" role="img" aria-label="Monthly revenue line chart"></canvas></div></div>
+          </section>
+          <section class="card c-4" id="card-target">
+            <div class="card-head"><div><h3 class="card-title">Monthly target</h3><p class="card-sub" id="sub-target">&nbsp;</p></div></div>
+            <div class="card-body" id="target"></div>
+          </section>
+        </div>
+      </div>
+      <section class="card c-3" id="card-cats">
+        <div class="card-head"><div><h3 class="card-title">Top categories</h3><p class="card-sub" id="sub-cats">&nbsp;</p></div></div>
+        <div class="card-body">
+          <div class="donut"><canvas id="cCat" role="img" aria-label="Net revenue share by category"></canvas><div class="donut-center"><span>Net revenue</span><b id="catTotal">–</b></div></div>
+          <ul class="legend rows" id="catLegend"></ul>
+        </div>
+      </section>
+
+      <section class="card c-7" id="card-map">
+        <div class="card-head">
+          <div><h3 class="card-title">Sales across Southeast Asia</h3><p class="card-sub" id="sub-map">&nbsp;</p></div>
+          <a class="card-link" href="{{ url_for('dashboard_customers') }}">Market details</a>
+        </div>
+        <div class="card-body map-wrap">
+          <div>{% include "_sea_map.svg.html" %}
+            <div class="map-scale"><span>Less</span><i id="mapScale"></i><span>More net revenue</span></div></div>
+          <ul class="country-list" id="countryList"></ul>
+        </div>
+      </section>
+      <section class="card c-5" id="card-funnel">
+        <div class="card-head"><div><h3 class="card-title">Order fulfilment</h3><p class="card-sub" id="sub-funnel">&nbsp;</p></div></div>
+        <div class="card-body"><div class="funnel" id="funnel"></div></div>
+      </section>
+
+      <section class="card c-6" id="card-recent">
+        <div class="card-head"><div><h3 class="card-title">Recent orders</h3></div><a class="card-link" href="{{ url_for('orders') }}">View all</a></div>
+        <div class="card-body" id="recent"></div>
+      </section>
+      <section class="card c-3" id="card-chan">
+        <div class="card-head"><div><h3 class="card-title">Acquisition channels</h3><p class="card-sub" id="sub-chan">&nbsp;</p></div></div>
+        <div class="card-body" id="chan"></div>
+      </section>
+      <section class="card c-3" id="card-activity">
+        <div class="card-head"><div><h3 class="card-title">Recent activity</h3></div></div>
+        <div class="card-body"><ul class="feed" id="activity"></ul></div>
+      </section>
     </div>
   {% else %}
+    <div class="kpis" id="kpis"></div>
     <h2 class="section-title">Value and retention</h2>
     <div class="grid">
       {{ plain_card('segments', 'Customer segments') }}
       {{ plain_card('recency', 'Time since last order') }}
+      {{ chart_card('cHist', 'Order value distribution', 'span-2', 'short') }}
     </div>
     <h2 class="section-title">Markets and acquisition</h2>
     <div class="grid">
@@ -82,6 +128,6 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='vendor/chart.umd.js') }}"></script>
-<script>window.DASH = {api: "{{ url_for('api_analytics') }}", view: "{{ view }}", payments: {{ C.PAYMENTS|tojson }}};</script>
+<script>window.DASH = {api: "{{ url_for('api_analytics') }}", view: "{{ view }}", payments: {{ C.PAYMENTS|tojson }}, channels: {{ C.CHANNELS|tojson }}, ordersUrl: "{{ url_for('orders') }}"};</script>
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}

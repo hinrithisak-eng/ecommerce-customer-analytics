@@ -53,7 +53,7 @@ ecommerce-customer-analytics/
 │   └── static/                               # CSS, JS, vendored Chart.js (works offline)
 ├── tests/
 │   ├── test_data_cleaning.py                 # pytest suite for the cleaning pipeline (14 tests)
-│   └── test_webapp.py                        # database, API, CRUD, validation & security tests (25 tests)
+│   └── test_webapp.py                        # database, API, CRUD, validation & security tests (26 tests)
 ├── .github/workflows/ci.yml                  # GitHub Actions: tests + pipeline on every push
 ├── outputs/
 │   └── figures/                              # 9 charts exported from the notebook
@@ -98,7 +98,7 @@ python src/run_pipeline.py
 # Run the web app (Flask + SQLite) — see section 6
 python webapp/app.py
 
-# Run the unit tests (39 tests: pipeline + web app)
+# Run the unit tests (40 tests: pipeline + web app)
 pytest -q
 ```
 
@@ -126,7 +126,8 @@ flowchart LR
 
 | Page | What it does |
 |------|--------------|
-| **Analytics** `/` and `/analytics/customers` | Overview and Customers & service pages; Country / Segment / Category filters (kept in the URL, so a filtered view can be bookmarked); every KPI, chart and takeaway line computed by SQL from the live database; a Chart / Table switch on every chart. Polls a change counter and refreshes itself when the data changes. Light and dark themes. |
+| **Dashboard** `/` | KPI cards with month-on-month change, revenue/orders trend (6M · 12M · all), monthly target gauge (latest month vs. the monthly average + 10%), top-categories donut, a **Southeast Asia map** shaded by net revenue per country, an order-fulfilment funnel (placed → shipped → delivered & kept → reviewed), acquisition channels, recent orders and a recent-activity feed. Country / Segment / Category filters are kept in the URL. Polls a change counter and refreshes itself when the data changes. Light and dark themes. |
+| **Customers & service** `/analytics/customers` | Segments, recency, order-value distribution, country, channel, payment mix and service-quality charts, each with a Chart / Table switch. |
 | **Orders** `/orders` | Search, filter, sort and page through orders; add, edit, delete. The form shows the customer's profile as you type their ID and a live order total. |
 | **Customers** `/customers` | Same for customers, with order count and net spend per customer. A customer who still has orders can't be deleted. |
 | **API** | `/api/analytics?country=&segment=&category=` (all dashboard numbers as JSON), `/api/version`, `/api/customers/<id>` |

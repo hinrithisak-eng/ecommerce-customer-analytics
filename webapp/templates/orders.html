@@ -9,7 +9,6 @@
     <h1>Orders</h1>
     <div class="page-meta">{{ '{:,}'.format(grand_total) }} orders{% if filtered %} · {{ '{:,}'.format(total) }} shown{% endif %}</div>
   </div>
-  <div class="page-actions"><a class="btn btn-primary" href="{{ url_for('order_new') }}">{{ icon('plus') }}New order</a></div>
 </header>
 
 <form class="filterbar" method="get" action="{{ url_for('orders') }}" role="search">

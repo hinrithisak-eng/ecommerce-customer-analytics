@@ -65,6 +65,26 @@ def compute(conn: sqlite3.Connection, country: str = "", segment: str = "", cate
     st = {r["k"]: r["n"] for r in q("SELECT order_status AS k, COUNT(*) AS n FROM v_orders {W} GROUP BY k")}
     out["status"] = [{"k": s, "n": st.get(s, 0)} for s in ("Delivered", "Returned", "Cancelled")]
 
+    # fulfilment funnel: every stage is a subset of the one before it
+    f = q("""SELECT COUNT(*) placed, SUM(order_status<>'Cancelled') shipped, SUM(order_status='Delivered') kept,
+                    SUM(order_status='Delivered' AND review_rating IS NOT NULL) reviewed FROM v_orders {W}""")[0]
+    out["funnel"] = [{"k": "Placed", "n": f["placed"]}, {"k": "Shipped", "n": f["shipped"]},
+                     {"k": "Delivered & kept", "n": f["kept"]}, {"k": "Reviewed", "n": f["reviewed"]}]
+
+    out["recent_orders"] = [dict(r) for r in q(
+        """SELECT order_id, order_date, customer_id, country, product_category, quantity, total_amount, order_status
+           FROM v_orders {W} ORDER BY order_date DESC, order_id DESC LIMIT 6""")]
+    events = []
+    for r in out["recent_orders"][:5]:
+        verb = {"Delivered": "ordered", "Returned": "returned", "Cancelled": "cancelled"}[r["order_status"]]
+        events.append({"date": r["order_date"], "kind": r["order_status"].lower(), "who": r["customer_id"],
+                       "text": f"{verb} {r['product_category']} · ${r['total_amount']:,.2f}"})
+    for r in conn.execute("""SELECT customer_id, signup_date, city, country FROM customers
+                             ORDER BY signup_date DESC, customer_id DESC LIMIT 2"""):
+        events.append({"date": r["signup_date"], "kind": "signup", "who": r["customer_id"],
+                       "text": f"signed up from {r['city']}, {r['country']}"})
+    out["activity"] = sorted(events, key=lambda e: e["date"], reverse=True)[:5]
+
     # ---------------- customers & service ----------------
     seg_rows = {r["k"]: r for r in q(
         """SELECT customer_segment AS k, COUNT(*) AS n, COUNT(DISTINCT customer_id) AS c,
@@ -96,10 +116,11 @@ def compute(conn: sqlite3.Connection, country: str = "", segment: str = "", cate
                         "top20_share": sum(spend[:top_n]) / (k["rev"] or 1)}
 
     out["country"] = [dict(r) for r in q(
-        """SELECT country AS k, SUM(net_revenue) AS rev, COUNT(DISTINCT customer_id) AS c
+        """SELECT country AS k, SUM(net_revenue) AS rev, COUNT(DISTINCT customer_id) AS c, COUNT(*) AS n
            FROM v_orders {W} GROUP BY country ORDER BY rev DESC""")]
     out["channel"] = [dict(r) for r in q(
-        """SELECT acquisition_channel AS k, SUM(net_revenue) * 1.0 / COUNT(DISTINCT customer_id) AS rpc
+        """SELECT acquisition_channel AS k, SUM(net_revenue) * 1.0 / COUNT(DISTINCT customer_id) AS rpc,
+                  COUNT(DISTINCT customer_id) AS c
            FROM v_orders {W} GROUP BY acquisition_channel ORDER BY rpc DESC""")]
     out["rev_per_customer"] = k["rev"] / k["cust"]
 

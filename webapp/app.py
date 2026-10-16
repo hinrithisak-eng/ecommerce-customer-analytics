@@ -181,6 +181,8 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
             "customers": conn.execute("SELECT COUNT(*) FROM customers").fetchone()[0],
             "version": conn.execute("SELECT value FROM meta WHERE key='data_version'").fetchone()[0],
             "loaded_at": datetime.now().strftime("%H:%M"),
+            "last_order": (lambda d: date.fromisoformat(d).strftime("%d %b %Y").lstrip("0") if d else "–")(
+                conn.execute("SELECT MAX(order_date) FROM orders").fetchone()[0]),
         }
         return {"csrf_token": csrf_token, "C": dbm, "today": date.today().isoformat(), "nav": nav}
 

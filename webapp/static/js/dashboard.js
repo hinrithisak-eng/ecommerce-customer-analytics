@@ -110,15 +110,29 @@
       `<span class="v">${num(p.n)} ${unit}</span><span class="p">${total ? pct(p.n / total) : '–'}</span></li>`).join('');
     container.innerHTML = `<div class="bars"><div class="seg" role="img" aria-label="${esc(parts.map(p => p.label + ' ' + num(p.n)).join(', '))}">${seg}</div><ul class="legend">${li}</ul></div>`;
   }
+  const ICONS = {
+    dollar: '<circle cx="12" cy="12" r="9"/><path d="M14.8 9.2c-.5-1-1.6-1.6-2.8-1.6-1.6 0-2.8.9-2.8 2.2 0 3 5.8 1.6 5.8 4.5 0 1.3-1.3 2.2-3 2.2-1.3 0-2.5-.6-3-1.7M12 6v1.6M12 16.5V18"/>',
+    cart: '<path d="M3 4h2.5l2.2 11h10.6l2.2-8H7"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/>',
+    users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><path d="M16 4.5a3.5 3.5 0 010 7M18 14.5a6.5 6.5 0 013.5 5.5"/>',
+    repeat: '<path d="M4 12a8 8 0 0113.7-5.6L20 8.5M20 4v4.5h-4.5M20 12a8 8 0 01-13.7 5.6L4 15.5M4 20v-4.5h4.5"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    truck: '<path d="M2.5 6h11v10h-11zM13.5 9.5h4l3 3.5v3h-7"/><circle cx="6.5" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
+    receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+    undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/>',
+    x: '<circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0115 0"/>',
+  };
+  const svgI = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
   const icon = d => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
-  function delta(cur, prev) {
-    if (!prev) return '';
+  function delta(cur, prev, label) {
+    if (!prev) return label || '';
     const ch = (cur - prev) / prev, up = ch >= 0;
-    return `<span class="delta ${up ? 'up' : 'down'}">${icon(up ? 'M7 17L17 7M9 7h8v8' : 'M7 7l10 10M17 9v8H9')}${Math.abs(ch * 100).toFixed(1)}%</span>`;
+    return `<span class="pill ${up ? 'up' : 'down'}">${icon(up ? 'M7 17L17 7M9 7h8v8' : 'M7 7l10 10M17 9v8H9')}${Math.abs(ch * 100).toFixed(1)}%</span> ${label || ''}`;
   }
   function kpis(list) {
     const box = $('kpis');
-    box.innerHTML = list.map(k => `<div class="kpi" data-k="${k.key}"><div class="kpi-label">${esc(k.label)}</div>` +
+    box.innerHTML = list.map(k => `<div class="kpi ${k.hero ? 'hero' : ''}" data-k="${k.key}"><div class="kpi-top"><div class="kpi-label">${esc(k.label)}</div>` +
+      (k.icon ? `<span class="icon-chip">${svgI(k.icon)}</span>` : '') + `</div>` +
       `<div class="kpi-value">${k.value}</div><div class="kpi-sub">${k.sub || '&nbsp;'}</div></div>`).join('');
     list.forEach(k => {
       if (prevKpi.flash && prevKpi[k.key] !== undefined && prevKpi[k.key] !== k.value) {
@@ -129,48 +143,123 @@
     });
     prevKpi.flash = false;
   }
+  // sequential shades of the accent: one hue, light -> dark, for ordered magnitudes
+  const rgb = h => { h = h.replace('#', ''); if (h.length === 3) h = [...h].map(c => c + c).join(''); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); };
+  const mix = (a, b, p) => { const A = rgb(a), B = rgb(b); return `rgb(${A.map((v, i) => Math.round(v * p / 100 + B[i] * (1 - p / 100))).join(',')})`; };
+  const alpha = (a, o) => `rgba(${rgb(a).join(',')},${o})`;
+  const shade = p => mix(T.s[0], T.surface, p);
 
   // ------------------------------------------------------------------ overview
-  function overview(d) {
-    const K = d.kpis, M = d.monthly;
-    const lm = M[M.length - 1], pm = M[M.length - 2];
-    const vs = pm ? ` vs ${monthName(pm.m).split(' ')[0]}` : '';
-    kpis([
-      { key: 'orders', label: 'Orders', value: num(K.orders), sub: pm ? `${delta(lm.n, pm.n)} ${monthName(lm.m).split(' ')[0]}${vs}` : '' },
-      { key: 'revenue', label: 'Net revenue', value: usd(K.revenue), sub: pm ? `${delta(lm.rev, pm.rev)} ${monthName(lm.m).split(' ')[0]}${vs}` : '' },
-      { key: 'aov', label: 'Average order value', value: usd2(K.aov), sub: `Median ${usd2(K.median)}` },
-      { key: 'rc', label: 'Returned or cancelled', value: pct(K.return_rate + K.cancel_rate), sub: `${usd(K.refunded)} not kept as revenue` },
-    ]);
-
-    // monthly net revenue: one measure, one axis. Order counts live in the tooltip and the table.
-    const best = M.reduce((a, b) => (b.rev > a.rev ? b : a), M[0]);
-    const avg = M.reduce((s, r) => s + r.rev, 0) / M.length;
-    sub('cMonth', `Averaging ${usd(avg)} a month. Highest: ${monthName(best.m)} at ${usd(best.rev)}.`);
+  let measure = 'rev', range = 0;
+  function monthChart(d) {
+    const all = d.monthly, M = range ? all.slice(-range) : all;
+    const isRev = measure === 'rev', vals = M.map(r => isRev ? r.rev : r.n);
+    const best = M.reduce((a, b) => ((isRev ? b.rev : b.n) > (isRev ? a.rev : a.n) ? b : a), M[0]);
+    const avg = vals.reduce((s, v) => s + v, 0) / vals.length;
+    const f = isRev ? usd : num;
+    sub('cMonth', `${isRev ? 'Net revenue' : 'Orders'} per month, averaging ${f(avg)}. Peak: ${monthName(best.m)} (${f(isRev ? best.rev : best.n)}).`);
+    const ctx = $('cMonth').getContext('2d');
+    const grad = ctx.createLinearGradient(0, 0, 0, 280);
+    grad.addColorStop(0, alpha(T.s[0], .24));
+    grad.addColorStop(1, alpha(T.s[0], 0));
     draw('cMonth', {
       type: 'line',
-      data: { labels: M.map(r => monthShort(r.m)), datasets: [{ data: M.map(r => r.rev), borderColor: T.s[0], borderWidth: 2,
-        backgroundColor: T.s[0], pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 12, tension: 0, fill: false }] },
+      data: { labels: M.map(r => monthShort(r.m)), datasets: [{ data: vals, borderColor: T.s[0], borderWidth: 2.5, backgroundColor: grad, fill: 'origin',
+        pointRadius: 0, pointHoverRadius: 5, pointHoverBorderWidth: 2, pointHoverBorderColor: T.surface, pointHoverBackgroundColor: T.s[0], pointHitRadius: 14, tension: .35 }] },
       options: {
         interaction: { mode: 'index', intersect: false },
         plugins: { legend: { display: false }, tooltip: { callbacks: {
           title: c => monthName(M[c[0].dataIndex].m),
-          label: c => [`Net revenue  ${usd(c.raw)}`, `Orders  ${num(M[c.dataIndex].n)}`] } } },
-        scales: { x: catAxis({ ticks: { color: T.tick, padding: 6, maxRotation: 0, autoSkipPadding: 12 } }),
-          y: axis({ beginAtZero: true, ticks: { color: T.tick, padding: 8, callback: usdK, maxTicksLimit: 5 } }) },
+          label: c => [`Net revenue  ${usd(M[c.dataIndex].rev)}`, `Orders  ${num(M[c.dataIndex].n)}`] } } },
+        scales: { x: catAxis({ border: { display: false }, ticks: { color: T.tick, padding: 6, maxRotation: 0, autoSkipPadding: 14 } }),
+          y: axis({ beginAtZero: true, ticks: { color: T.tick, padding: 8, callback: isRev ? usdK : num, maxTicksLimit: 5 } }) },
       },
     });
-    table('cMonth', ['Month', 'Orders', 'Net revenue'], M.map(r => [monthName(r.m), num(r.n), usd2(r.rev)]), [1, 2]);
+  }
 
+  function gauge(d) {
+    const M = d.monthly, cur = M[M.length - 1];
+    const target = M.reduce((s, r) => s + r.rev, 0) / M.length * 1.1;
+    const p = Math.min(cur.rev / target, 1), pct0 = Math.round(cur.rev / target * 100);
+    const L = Math.PI * 80;                    // semicircle length for r = 80
+    const prev = M[M.length - 2];
+    sub('target', `${monthName(cur.m)} vs. target of the monthly average + 10%`);
+    $('target').innerHTML = `<div class="gauge"><svg viewBox="0 0 200 112" aria-hidden="true">
+        <path class="g-track" d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke-width="18" stroke-linecap="round"/>
+        <path class="g-val" d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke-width="18" stroke-linecap="round" stroke-dasharray="${L}" stroke-dashoffset="${L * (1 - p)}"/></svg>
+        <div class="gauge-num"><b>${pct0}%</b><span>${prev ? delta(cur.rev, prev.rev, 'vs ' + monthName(prev.m).split(' ')[0]) : ''}</span></div></div>
+      <p class="gauge-note">${cur.rev >= target ? `<b>Target met</b> with ${usd(cur.rev - target)} to spare.` : `<b>${usd(target - cur.rev)}</b> short of target this month.`}</p>
+      <div class="split"><div><span>Target</span><b>${usd(target)}</b></div><div><span>Revenue</span><b>${usd(cur.rev)}</b></div></div>`;
+  }
+
+  function overview(d) {
+    const K = d.kpis, M = d.monthly, R = d.retention;
+    const lm = M[M.length - 1], pm = M[M.length - 2];
+    const vs = pm ? `vs ${monthName(pm.m).split(' ')[0]}` : '';
+    kpis([
+      { key: 'revenue', label: 'Net revenue', icon: 'dollar', hero: true, value: usd(K.revenue), sub: pm ? delta(lm.rev, pm.rev, `${monthName(lm.m).split(' ')[0]} ${vs}`) : '' },
+      { key: 'orders', label: 'Orders', icon: 'cart', value: num(K.orders), sub: pm ? delta(lm.n, pm.n, `${monthName(lm.m).split(' ')[0]} ${vs}`) : '' },
+      { key: 'cust', label: 'Customers', icon: 'users', value: num(K.customers), sub: `${pct(R.repeat_rate, 0)} ordered more than once` },
+    ]);
+    monthChart(d);
+    gauge(d);
+
+    // top categories: share of net revenue, darker = bigger
     const C = d.category, catTotal = C.reduce((s, r) => s + r.rev, 0);
-    sub('cCat', C.length > 1 ? `${C[0].k} brings in ${pct(C[0].rev / catTotal, 0)} of net revenue; ${C[C.length - 1].k} ${pct(C[C.length - 1].rev / catTotal, 0)}.` : `${C[0].k} only.`);
-    hbar('cCat', C.map(r => r.k), C.map(r => r.rev), T.s[0], usdK, (v, i) => `${usd(v)} · ${num(C[i].n)} orders`);
-    table('cCat', ['Category', 'Orders', 'Net revenue', 'Share'], C.map(r => [r.k, num(r.n), usd2(r.rev), pct(r.rev / catTotal)]), [1, 2, 3]);
+    const cc = C.map((_, i) => shade(100 - i * (70 / Math.max(1, C.length - 1))));
+    sub('cats', C.length > 1 ? `${C[0].k} alone is ${pct(C[0].rev / catTotal, 0)} of net revenue.` : '');
+    $('catTotal').textContent = usdK(catTotal);
+    draw('cCat', {
+      type: 'doughnut',
+      data: { labels: C.map(r => r.k), datasets: [{ data: C.map(r => r.rev), backgroundColor: cc, borderColor: T.surface, borderWidth: 2, hoverOffset: 4 }] },
+      options: { cutout: '72%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${usd(c.raw)} · ${pct(c.raw / catTotal)}` } } } },
+    });
+    $('catLegend').innerHTML = C.map((r, i) => `<li><span class="sw" style="background:${cc[i]}"></span><span>${esc(r.k)}</span><span class="v">${usd(r.rev)}</span></li>`).join('');
 
-    const S = d.status, colors = { Delivered: T.good, Returned: T.critical, Cancelled: T.neutral };
-    const kept = S.find(s => s.k === 'Delivered').n;
-    sub('outcomes', `${pct(kept / d.n)} of orders were delivered and kept.`);
-    partBar($('outcomes'), S.map(s => ({ label: s.k, n: s.n, color: colors[s.k] })), d.n, 'orders');
+    // map: countries shaded by net revenue
+    const CO = d.country, coMax = Math.max(...CO.map(r => r.rev)), coTot = CO.reduce((s, r) => s + r.rev, 0);
+    const byC = Object.fromEntries(CO.map(r => [r.k, r]));
+    const mapEl = document.querySelector('.sea-map');
+    mapEl.querySelectorAll('.c').forEach(el => {
+      const r = byC[el.dataset.country];
+      el.style.fill = r ? shade(25 + 75 * r.rev / coMax) : T.grid;
+      el.querySelector('title').textContent = r ? `${r.k}: ${usd(r.rev)} net revenue · ${num(r.c)} customers · ${num(r.n)} orders` : `${el.dataset.country}: no orders in this view`;
+    });
+    $('mapScale').style.background = `linear-gradient(90deg, ${shade(25)}, ${shade(100)})`;
+    sub('map', CO.length > 1 ? `${CO[0].k}, ${CO[1].k} and ${CO[2] ? CO[2].k : ''} bring in ${pct((CO[0].rev + CO[1].rev + (CO[2] ? CO[2].rev : 0)) / coTot, 0)} of net revenue.` : `Showing ${CO[0].k} only.`);
+    $('countryList').innerHTML = CO.map(r => `<li data-country="${esc(r.k)}" title="${num(r.c)} customers · ${num(r.n)} orders · ${pct(r.rev / coTot, 0)} of net revenue"><div class="row"><span>${esc(r.k)}</span><b>${usd(r.rev)}</b></div>` +
+      `<div class="track"><i style="width:${(r.rev / coMax * 100).toFixed(1)}%"></i></div></li>`).join('');
 
+    // fulfilment funnel
+    const F = d.funnel;
+    sub('funnel', `${pct(F[2].n / F[0].n)} of orders end up delivered and kept.`);
+    $('funnel').innerHTML = F.map((s, i) => `<div class="stage"><div class="lbl">${esc(s.k)}</div><div class="val">${num(s.n)}</div>` +
+      `<div class="rate">${i ? `<span class="pill ${s.n / F[i - 1].n >= .85 ? 'up' : 'down'}">${pct(s.n / F[i - 1].n, 0)}</span>` : '<span class="pill up">100%</span>'}</div>` +
+      `<div class="col"><i style="height:${Math.max(4, s.n / F[0].n * 100).toFixed(1)}%" title="${esc(s.k)}: ${num(s.n)} orders"></i></div></div>`).join('');
+
+    // recent orders
+    $('recent').innerHTML = `<table class="mini"><thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Category</th><th class="r">Total</th><th>Status</th></tr></thead><tbody>` +
+      d.recent_orders.map(r => `<tr><td><a href="${CFG.ordersUrl}?q=${encodeURIComponent(r.order_id)}">${esc(r.order_id)}</a></td><td class="num">${esc(r.order_date)}</td>` +
+        `<td>${esc(r.customer_id)}</td><td>${esc(r.product_category)}</td><td class="r">${usd2(r.total_amount)}</td>` +
+        `<td><span class="status-pill ${r.order_status}">${r.order_status}</span></td></tr>`).join('') + '</tbody></table>';
+
+    // acquisition channels: customers per channel, colour fixed per channel
+    const CH = d.channel, chTot = CH.reduce((s, r) => s + r.c, 0);
+    const chColor = k => T.s[CFG.channels.indexOf(k)] || T.muted;
+    const chs = CFG.channels.map(k => CH.find(r => r.k === k)).filter(Boolean);
+    const topCh = [...CH].sort((a, b) => b.c - a.c)[0];
+    sub('chan', `${topCh.k} brought in the most customers.`);
+    $('chan').innerHTML = `<div class="stackbar" role="img" aria-label="Customers by channel">${chs.map(r => `<span style="flex:${r.c} 1 0;background:${chColor(r.k)}" title="${esc(r.k)}: ${num(r.c)}"></span>`).join('')}</div>` +
+      `<ul class="legend rows">${chs.map(r => `<li><span class="sw" style="background:${chColor(r.k)}"></span><span>${esc(r.k)}</span><span class="v">${pct(r.c / chTot, 0)}</span></li>`).join('')}</ul>`;
+
+    // activity feed
+    const kindIcon = { delivered: 'receipt', returned: 'undo', cancelled: 'x', signup: 'user' };
+    const fmtDate = s => new Date(s + 'T00:00').toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+    $('activity').innerHTML = d.activity.map(e => `<li><span class="icon-chip ${e.kind}">${svgI(kindIcon[e.kind])}</span>` +
+      `<div><b>${esc(e.who)}</b> ${esc(e.text)}<time datetime="${e.date}">${fmtDate(e.date)}</time></div></li>`).join('');
+  }
+
+  function histogram(d) {
     const H = d.histogram;
     const under100 = H.counts.slice(0, 4).reduce((a, b) => a + b, 0);
     sub('cHist', `${pct(under100 / d.n, 0)} of orders are under $100; a long tail runs past $1,000.`);
@@ -192,10 +281,10 @@
   function customers(d) {
     const R = d.retention, cor = d.correlation;
     kpis([
-      { key: 'cust', label: 'Customers', value: num(R.customers), sub: `${usd(d.rev_per_customer)} net revenue each` },
-      { key: 'repeat', label: 'Repeat customers', value: pct(R.repeat_rate), sub: 'Placed more than one order' },
-      { key: 'dormant', label: 'Dormant customers', value: pct(R.dormant_share), sub: 'No order in the last 180 days' },
-      { key: 'corr', label: 'Delivery time vs rating', value: (cor.r < 0 ? '−' : '') + Math.abs(cor.r).toFixed(2), sub: `Correlation across ${num(cor.n)} reviews` },
+      { key: 'cust', label: 'Customers', icon: 'users', hero: true, value: num(R.customers), sub: `${usd(d.rev_per_customer)} net revenue each` },
+      { key: 'repeat', label: 'Repeat customers', icon: 'repeat', value: pct(R.repeat_rate), sub: 'Placed more than one order' },
+      { key: 'dormant', label: 'Dormant customers', icon: 'clock', value: pct(R.dormant_share), sub: 'No order in the last 180 days' },
+      { key: 'corr', label: 'Delivery time vs rating', icon: 'truck', value: (cor.r < 0 ? '−' : '') + Math.abs(cor.r).toFixed(2), sub: `Correlation across ${num(cor.n)} reviews` },
     ]);
 
     // segments: a comparison table reads better than four separate charts
@@ -211,7 +300,6 @@
 
     // recency bands are ordered, so one hue from light to dark rather than three unrelated colours
     const ch = d.churn, tot = ch.high + ch.medium + ch.low;
-    const shade = p => `color-mix(in srgb, ${T.s[0]} ${p}%, ${T.surface})`;
     sub('recency', `${pct(ch.high / tot, 0)} haven't ordered in more than 180 days, measured to ${new Date(ch.snapshot + 'T00:00').toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}.`);
     partBar($('recency'), [
       { label: 'Within 90 days', n: ch.low, color: shade(100) },
@@ -219,6 +307,7 @@
       { label: 'Over 180 days', n: ch.high, color: shade(40) },
     ], tot, 'customers');
 
+    histogram(d);
     const CO = d.country, coTot = CO.reduce((s, r) => s + r.rev, 0);
     sub('cCountry', CO.length > 1 ? `${CO[0].k} leads with ${pct(CO[0].rev / coTot, 0)} of net revenue.` : `${CO[0].k} only.`);
     hbar('cCountry', CO.map(r => r.k), CO.map(r => r.rev), T.s[0], usdK, (v, i) => `${usd(v)} · ${num(CO[i].c)} customers`);
@@ -271,7 +360,7 @@
       type: 'bubble',
       data: { datasets: [
         { label: 'Reviews', data: P.map(p => ({ x: p.x, y: p.y, r: 2.5 + 9 * Math.sqrt(p.c / maxC), c: p.c })),
-          backgroundColor: `color-mix(in srgb, ${T.s[0]} 45%, transparent)`, borderColor: T.surface, borderWidth: 1 },
+          backgroundColor: alpha(T.s[0], .45), borderColor: T.surface, borderWidth: 1 },
         { type: 'line', label: 'Trend', data: [{ x: x0, y: cor.intercept + cor.slope * x0 }, { x: x1, y: cor.intercept + cor.slope * x1 }],
           borderColor: T.ink, backgroundColor: T.ink, borderWidth: 2, pointRadius: 0, pointHitRadius: 0 },
       ] },
@@ -361,7 +450,28 @@
     if (last) render(last);
   });
 
-  readTheme();
+  // overview-only controls
+  const segCtl = (id, fn) => { const g = $(id); if (!g) return;
+    g.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
+      g.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); fn(b); if (last && last.n) monthChart(last); }); };
+  segCtl('measure', b => { measure = b.dataset.m; });
+  segCtl('range', b => { range = +b.dataset.r; });
+
+  // map <-> list hover linking
+  const mapEl = document.querySelector('.sea-map'), list = $('countryList');
+  if (mapEl && list) {
+    const hot = k => {
+      mapEl.classList.toggle('has-hover', !!k);
+      mapEl.querySelectorAll('.c').forEach(el => el.classList.toggle('hot', el.dataset.country === k));
+      list.querySelectorAll('li').forEach(li => li.classList.toggle('hot', li.dataset.country === k));
+    };
+    mapEl.addEventListener('mouseover', e => { const c = e.target.closest('.c'); hot(c ? c.dataset.country : null); });
+    mapEl.addEventListener('mouseleave', () => hot(null));
+    list.addEventListener('mouseover', e => { const li = e.target.closest('li'); hot(li ? li.dataset.country : null); });
+    list.addEventListener('mouseleave', () => hot(null));
+  }
+
   syncControls();
-  load();
+  // wait for the web font so canvas text is drawn in Inter, not the fallback
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => { readTheme(); load(); });
 })();

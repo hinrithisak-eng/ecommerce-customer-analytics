@@ -150,3 +150,12 @@ def test_reset_restores_original_data(client):
     client.post("/admin/reset", data={"_csrf": t})
     assert client.get("/api/analytics").get_json()["n"] == 1972
     assert client.get("/api/version").get_json()["version"] > v
+
+
+def test_dashboard_widgets_data(client):
+    a = client.get("/api/analytics").get_json()
+    f = [s["n"] for s in a["funnel"]]
+    assert f[0] == 1972 and f[0] >= f[1] >= f[2] >= f[3] > 0   # each stage is a subset of the previous one
+    assert len(a["recent_orders"]) == 6 and a["recent_orders"][0]["order_date"] == "2025-06-30"
+    assert sum(c["c"] for c in a["channel"]) == a["kpis"]["customers"]
+    assert b"sea-map" in client.get("/").data
