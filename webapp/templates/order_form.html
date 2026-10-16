@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% from "_macros.html" import select_field, input_field %}
+{% set editing = order is not none %}
+{% block title %}{{ 'Edit ' ~ order.order_id if editing else 'Add order' }} · E-commerce Customer Analytics{% endblock %}
+{% block content %}
+{# value precedence: re-submitted form > existing order > sensible default #}
+{% macro v(name, default='') -%}{{ form.get(name) if form.get(name) is not none else (order[name] if editing and order[name] is not none else default) }}{%- endmacro %}
+<div class="page-head narrow">
+  <div><h2>{{ 'Edit order ' ~ order.order_id if editing else 'Add an order' }}</h2>
+    <p>{{ 'Changes are validated against the same business rules as the cleaning pipeline, then saved to the database.' if editing else 'The order is validated against the same business rules as the cleaning pipeline (notebook §8), then saved to the database — the dashboard picks it up immediately.' }}</p></div>
+  <a class="btn" href="{{ url_for('orders') }}">← Back to orders</a>
+</div>
+
+{% if errors.get('_') %}<div class="flash error narrow" style="margin-bottom:14px">{{ errors['_'] }}</div>{% endif %}
+{% if errors and not errors.get('_') %}<div class="flash error narrow" style="margin-bottom:14px">Please fix the {{ errors|length }} highlighted field{{ 's' if errors|length > 1 }} below.</div>{% endif %}
+
+<form class="card form-card" method="post" novalidate id="orderForm">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+
+  <div class="form-section">Customer &amp; date</div>
+  <div class="form-grid">
+    <div class="field span2 {{ 'invalid' if errors.get('customer_id') }}"><label for="customer_id">Customer ID</label>
+      <input type="text" id="customer_id" name="customer_id" list="custList" autocomplete="off" placeholder="e.g. C1122"
+             value="{{ v('customer_id', request.args.get('customer_id', '')) }}" data-api="{{ url_for('api_customer', customer_id='__ID__') }}">
+      <datalist id="custList">{% for c in customer_ids %}<option value="{{ c }}">{% endfor %}</datalist>
+      {% if errors.get('customer_id') %}<span class="err">{{ errors['customer_id'] }}</span>{% endif %}
+      <div class="cust-card" id="custCard">Type a customer ID to see who it is. New customer? <a href="{{ url_for('customer_new', then='order') }}">Add them first</a>.</div>
+    </div>
+    {{ input_field('order_date', 'Order date', v('order_date', latest_date), errors, 'date',
+        hint='Dataset runs Jan 2024 – Jun 2025; defaults to the latest date in it.') }}
+  </div>
+
+  <div class="form-section">Product &amp; price</div>
+  <div class="form-grid">
+    {{ select_field('product_category', 'Category', C.CATEGORIES, v('product_category'), errors, blank='Choose…') }}
+    {{ input_field('quantity', 'Quantity', v('quantity', 1), errors, 'number', hint='1 – 50 units', attrs='min="1" max="50" step="1"') }}
+    {{ input_field('unit_price', 'Unit price (USD)', v('unit_price'), errors, 'number', hint='Greater than $0', attrs='min="0.01" max="5000" step="0.01" placeholder="0.00"') }}
+    {{ input_field('discount_pct', 'Discount (%)', v('discount_pct', 0), errors, 'number', hint='0 – 100 %', attrs='min="0" max="100" step="0.5"') }}
+    {{ input_field('shipping_cost', 'Shipping (USD)', v('shipping_cost', 0), errors, 'number', hint='Free above $120 in the source data', attrs='min="0" max="100" step="0.01"') }}
+  </div>
+
+  <div class="form-section">Checkout &amp; fulfilment</div>
+  <div class="form-grid">
+    {{ select_field('payment_method', 'Payment method', C.PAYMENTS, v('payment_method'), errors, blank='Choose…') }}
+    {{ select_field('device_type', 'Device', C.DEVICES, v('device_type', 'Mobile'), errors) }}
+    {{ select_field('order_status', 'Status', C.STATUSES, v('order_status', 'Delivered'), errors) }}
+    {{ input_field('delivery_days', 'Delivery days', v('delivery_days'), errors, 'number', hint='0 – 30; blank for cancelled orders', attrs='min="0" max="30" step="1"') }}
+    {{ select_field('review_rating', 'Review rating', [5, 4, 3, 2, 1], v('review_rating'), errors, blank='No review') }}
+  </div>
+
+  <div class="form-actions">
+    <button class="btn primary" type="submit">{{ 'Save changes' if editing else 'Add order' }}</button>
+    <a class="btn" href="{{ url_for('orders') }}">Cancel</a>
+    <div class="total-preview">Order total <b id="totalPreview">$0.00</b></div>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const f = document.getElementById('orderForm'), $ = n => f.elements[n];
+  // live order total: quantity × price × (1 − discount) + shipping — the same formula as the v_orders view
+  function total() {
+    const q = +$('quantity').value || 0, p = +$('unit_price').value || 0, d = +$('discount_pct').value || 0, s = +$('shipping_cost').value || 0;
+    document.getElementById('totalPreview').textContent = '$' + (q * p * (1 - d / 100) + s).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  }
+  ['quantity', 'unit_price', 'discount_pct', 'shipping_cost'].forEach(n => $(n).addEventListener('input', total));
+  total();
+
+  // a cancelled order is never delivered: disable delivery & review (the database enforces this too)
+  function syncStatus() {
+    const off = $('order_status').value === 'Cancelled';
+    ['delivery_days', 'review_rating'].forEach(n => { $(n).disabled = off; if (off) $(n).value = ''; });
+  }
+  $('order_status').addEventListener('change', syncStatus); syncStatus();
+
+  // customer lookup card
+  const inp = $('customer_id'), card = document.getElementById('custCard'); let t;
+  async function lookup() {
+    const id = inp.value.trim().toUpperCase();
+    if (!id) return;
+    try {
+      const r = await fetch(inp.dataset.api.replace('__ID__', encodeURIComponent(id)));
+      const c = await r.json();
+      if (c.found) { card.className = 'cust-card ok';
+        card.textContent = `✓ ${c.customer_id} · ${c.gender}, ${c.age} · ${c.city}, ${c.country} · ${c.customer_segment} · ${c.orders} previous order${c.orders === 1 ? '' : 's'} · signed up ${c.signup_date}`; }
+      else { card.className = 'cust-card bad'; card.innerHTML = `No customer ${id}. <a href="{{ url_for('customer_new', then='order') }}">Add a new customer</a>`; }
+    } catch (e) { /* offline: server-side validation still applies */ }
+  }
+  inp.addEventListener('input', () => { clearTimeout(t); t = setTimeout(lookup, 250); });
+  lookup();
+})();
+</script>
+{% endblock %}

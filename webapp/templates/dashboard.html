@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · E-commerce Customer Analytics{% endblock %}
+{% block subbar %}
+<div class="subbar">
+  <div class="bar">
+    <div class="tabs">
+      <button data-tab="overview" class="active">Overview <kbd>1</kbd></button>
+      <button data-tab="customers">Customers &amp; service <kbd>2</kbd></button>
+    </div>
+    <div class="filters">
+      <div class="field"><label for="fCountry">Country</label>
+        <select id="fCountry"><option value="">All countries</option>{% for c in opts.countries %}<option>{{ c }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="fSegment">Segment</label>
+        <select id="fSegment"><option value="">All segments</option>{% for s in opts.segments %}<option>{{ s }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="fCategory">Category</label>
+        <select id="fCategory"><option value="">All categories</option>{% for c in opts.categories %}<option>{{ c }}</option>{% endfor %}</select></div>
+      <button id="reset" class="btn" disabled>Reset</button>
+    </div>
+  </div>
+  <div class="scope" id="scope"><span>Showing</span><span id="activeChips"><span class="chip">all orders</span></span><span id="scopeCount"></span><span class="spinner" aria-hidden="true"></span></div>
+</div>
+{% endblock %}
+
+{% block content %}
+<section class="tab active" id="overview">
+  <div class="page-head"><div><h2>Overview</h2><p>Where the revenue comes from, how it moves through the year, and how much leaks away through returns and cancellations — read live from the database.</p></div>
+    <a class="btn primary" href="{{ url_for('order_new') }}"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add order</a></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="band"><h3>Revenue drivers</h3></div>
+  <div class="grid">
+    <div class="card lift"><div class="card-head"><h4>Net revenue by product category</h4><span class="tag">Q1</span></div>
+      <div class="chart-box"><canvas id="cCat"></canvas></div><div class="interp" id="iCat"></div></div>
+    <div class="card lift"><div class="card-head"><h4>Monthly orders and net revenue</h4><span class="tag">Q3</span></div>
+      <div class="chart-box"><canvas id="cMonth"></canvas></div><div class="interp" id="iMonth"></div></div>
+    <div class="card lift"><div class="card-head"><h4>Distribution of order value</h4><span class="tag">Histogram</span></div>
+      <div class="chart-box"><canvas id="cHist"></canvas></div><div class="interp" id="iHist"></div></div>
+    <div class="card lift"><div class="card-head"><h4>Order status mix</h4><span class="tag">Revenue leakage</span></div>
+      <div class="chart-box"><canvas id="cStatus"></canvas></div><div class="interp" id="iStatus"></div></div>
+  </div>
+</section>
+
+<section class="tab" id="customers">
+  <div class="page-head"><div><h2>Customers &amp; service quality</h2><p>Who buys and how often they come back, which markets and channels bring the most valuable customers, and how delivery speed and returns shape ratings.</p></div>
+    <a class="btn" href="{{ url_for('customers') }}">Manage customers</a></div>
+  <div class="kpis" id="kpis2"></div>
+  <div class="band"><h3>Value &amp; retention</h3></div>
+  <div class="grid">
+    <div class="card lift"><div class="card-head"><h4>Orders per customer vs. average order value</h4><span class="tag">Q2</span></div>
+      <div class="chart-box"><canvas id="cSeg"></canvas></div><div class="interp" id="iSeg"></div></div>
+    <div class="card lift"><div class="card-head"><h4>Churn risk by recency of last order</h4><span class="tag">Q6</span></div>
+      <div class="chart-box"><canvas id="cChurn"></canvas></div><div class="interp" id="iChurn"></div></div>
+  </div>
+  <div class="band"><h3>Markets &amp; acquisition</h3></div>
+  <div class="grid">
+    <div class="card lift"><div class="card-head"><h4>Net revenue by country</h4><span class="tag">Q4</span></div>
+      <div class="chart-box"><canvas id="cCountry"></canvas></div><div class="interp" id="iCountry"></div></div>
+    <div class="card lift"><div class="card-head"><h4>Revenue per acquired customer by channel</h4><span class="tag">Q4</span></div>
+      <div class="chart-box"><canvas id="cChan"></canvas></div><div class="interp" id="iChan"></div></div>
+    <div class="card lift wide"><div class="card-head"><h4>Payment-method mix by age group</h4><span class="tag">Q7 · crosstab</span></div>
+      <div class="chart-box tall"><canvas id="cPay"></canvas></div><div class="interp" id="iPay"></div></div>
+  </div>
+  <div class="band"><h3>Service quality</h3></div>
+  <div class="grid">
+    <div class="card lift"><div class="card-head"><h4>Mean review rating by delivery-time band</h4><span class="tag">Q5</span></div>
+      <div class="chart-box"><canvas id="cDeliv"></canvas></div><div class="interp" id="iDeliv"></div></div>
+    <div class="card lift"><div class="card-head"><h4>Delivery time vs. review rating</h4><span class="tag">Q5 · scatter</span></div>
+      <div class="chart-box"><canvas id="cScatter"></canvas></div><div class="interp" id="iScatter"></div></div>
+    <div class="card lift"><div class="card-head"><h4>Return rate by product category</h4><span class="tag">Q1</span></div>
+      <div class="chart-box"><canvas id="cRet"></canvas></div><div class="interp" id="iRet"></div></div>
+    <div class="card lift"><div class="card-head"><h4>Rating and poor-review share by order status</h4><span class="tag">Delivered vs. Returned</span></div>
+      <div class="chart-box"><canvas id="cRateStatus"></canvas></div><div class="interp" id="iRateStatus"></div></div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/chart.umd.js') }}"></script>
+<script>window.ECA_CONFIG = {api: "{{ url_for('api_analytics') }}", version: "{{ url_for('api_version') }}", initialVersion: {{ version }}};</script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

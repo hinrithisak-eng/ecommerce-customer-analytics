@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "_macros.html" import select_field, input_field %}
+{% set editing = customer is not none %}
+{% block title %}{{ 'Edit ' ~ customer.customer_id if editing else 'Add customer' }} · E-commerce Customer Analytics{% endblock %}
+{% block content %}
+{% macro v(name, default='') -%}{{ form.get(name) if form.get(name) is not none else (customer[name] if editing else default) }}{%- endmacro %}
+<div class="page-head narrow">
+  <div><h2>{{ 'Edit customer ' ~ customer.customer_id if editing else 'Add a customer' }}</h2>
+    <p>Customer details are stored once and shared by all of that customer's orders.</p></div>
+  <a class="btn" href="{{ url_for('customers') }}">← Back to customers</a>
+</div>
+{% if errors %}<div class="flash error narrow" style="margin-bottom:14px">Please fix the {{ errors|length }} highlighted field{{ 's' if errors|length > 1 }} below.</div>{% endif %}
+
+<form class="card form-card" method="post" novalidate>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="then" value="{{ request.args.get('then', form.get('then', '')) }}">
+  <div class="form-section">Profile</div>
+  <div class="form-grid">
+    {{ input_field('age', 'Age', v('age'), errors, 'number', hint='18 – 100', attrs='min="18" max="100" step="1"') }}
+    {{ select_field('gender', 'Gender', C.GENDERS, v('gender'), errors, blank='Choose…') }}
+    {{ input_field('signup_date', 'Sign-up date', v('signup_date', today), errors, 'date', attrs='max="' ~ today ~ '"') }}
+  </div>
+  <div class="form-section">Location</div>
+  <div class="form-grid">
+    {{ select_field('country', 'Country', C.COUNTRIES, v('country'), errors, blank='Choose…') }}
+    {{ input_field('city', 'City', v('city'), errors, 'text', attrs='maxlength="60" placeholder="e.g. Phnom Penh"') }}
+  </div>
+  <div class="form-section">Marketing</div>
+  <div class="form-grid">
+    {{ select_field('customer_segment', 'Segment', C.SEGMENTS, v('customer_segment', 'New'), errors) }}
+    {{ select_field('acquisition_channel', 'Acquisition channel', C.CHANNELS, v('acquisition_channel'), errors, blank='Choose…') }}
+  </div>
+  <div class="form-actions">
+    <button class="btn primary" type="submit">{{ 'Save changes' if editing else ('Add customer & continue to order' if request.args.get('then') == 'order' or form.get('then') == 'order' else 'Add customer') }}</button>
+    <a class="btn" href="{{ url_for('customers') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

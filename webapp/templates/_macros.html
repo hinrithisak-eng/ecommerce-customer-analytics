@@ -1,0 +1,45 @@
+{# Shared helpers for list pages and forms #}
+
+{# qs(args, key=value, ...) — current query string with overrides; extra keyword args arrive as `kwargs` #}
+{% macro qs(args) -%}
+  {%- set d = {} -%}
+  {%- for k in args -%}{%- if k not in ('page', 'highlight') and args.get(k) -%}{%- set _ = d.update({k: args.get(k)}) -%}{%- endif -%}{%- endfor -%}
+  {%- for k, v in kwargs.items() -%}{%- if v in (None, '') -%}{%- set _ = d.pop(k, None) -%}{%- else -%}{%- set _ = d.update({k: v}) -%}{%- endif -%}{%- endfor -%}
+  {{- d | urlencode -}}
+{%- endmacro %}
+
+{% macro sort_th(endpoint, args, col, label, sort, dir, cls='') -%}
+  {%- set nd = 'asc' if (sort == col and dir == 'desc') else 'desc' -%}
+  <th class="{{ cls }}"><a href="{{ url_for(endpoint) }}?{{ qs(args, sort=col, dir=nd) }}">{{ label }}
+    {%- if sort == col %} <span class="arrow">{{ '▲' if dir == 'asc' else '▼' }}</span>{% endif %}</a></th>
+{%- endmacro %}
+
+{% macro pager(endpoint, args, page, pages, total, offset, page_size, noun) -%}
+<div class="pager">
+  <span>{% if total %}Showing {{ '{:,}'.format(offset + 1) }}–{{ '{:,}'.format([offset + page_size, total]|min) }} of {{ '{:,}'.format(total) }} {{ noun }}{% else %}No {{ noun }} match{% endif %}</span>
+  {% if pages > 1 %}<div class="pages">
+    <a class="btn sm" {% if page > 1 %}href="{{ url_for(endpoint) }}?{{ qs(args, page=1) }}"{% else %}aria-disabled="true" style="opacity:.4;pointer-events:none"{% endif %}>« First</a>
+    <a class="btn sm" {% if page > 1 %}href="{{ url_for(endpoint) }}?{{ qs(args, page=page-1) }}"{% else %}aria-disabled="true" style="opacity:.4;pointer-events:none"{% endif %}>‹ Prev</a>
+    <span class="btn sm" style="cursor:default">Page {{ page }} / {{ pages }}</span>
+    <a class="btn sm" {% if page < pages %}href="{{ url_for(endpoint) }}?{{ qs(args, page=page+1) }}"{% else %}aria-disabled="true" style="opacity:.4;pointer-events:none"{% endif %}>Next ›</a>
+    <a class="btn sm" {% if page < pages %}href="{{ url_for(endpoint) }}?{{ qs(args, page=pages) }}"{% else %}aria-disabled="true" style="opacity:.4;pointer-events:none"{% endif %}>Last »</a>
+  </div>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro select_field(name, label, options, value, errors, blank=None, attrs='') -%}
+<div class="field {{ 'invalid' if errors.get(name) }}"><label for="{{ name }}">{{ label }}</label>
+  <select id="{{ name }}" name="{{ name }}" {{ attrs|safe }}>
+    {% if blank is not none %}<option value="">{{ blank }}</option>{% endif %}
+    {% for o in options %}<option value="{{ o }}" {{ 'selected' if (value|string) == (o|string) }}>{{ o }}</option>{% endfor %}
+  </select>
+  {% if errors.get(name) %}<span class="err">{{ errors[name] }}</span>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro input_field(name, label, value, errors, type='text', hint=None, attrs='') -%}
+<div class="field {{ 'invalid' if errors.get(name) }}"><label for="{{ name }}">{{ label }}</label>
+  <input type="{{ type }}" id="{{ name }}" name="{{ name }}" value="{{ value if value is not none else '' }}" {{ attrs|safe }}>
+  {% if errors.get(name) %}<span class="err">{{ errors[name] }}</span>{% elif hint %}<span class="hint">{{ hint }}</span>{% endif %}
+</div>
+{%- endmacro %}
