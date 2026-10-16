@@ -1,37 +1,40 @@
-// Shared behaviour for every page: theme toggle, keyboard shortcuts, toasts.
+// Shared behaviour: theme switch, confirm dialogs, database status polling.
 (function () {
   const root = document.documentElement;
-  const save = t => { try { localStorage.setItem('eca-theme', t); } catch (e) { /* storage unavailable */ } };
-
-  window.ECA = window.ECA || {};
-  ECA.onTheme = [];
-  ECA.toast = function (msg, ms) {
-    const t = document.getElementById('toast');
-    document.getElementById('toastText').textContent = msg;
-    t.classList.add('show');
-    clearTimeout(ECA._tt);
-    ECA._tt = setTimeout(() => t.classList.remove('show'), ms || 3200);
-  };
 
   document.getElementById('theme').addEventListener('click', () => {
     const t = root.dataset.theme === 'dark' ? 'light' : 'dark';
     root.dataset.theme = t;
-    save(t);
-    ECA.onTheme.forEach(fn => fn(t));
+    try { localStorage.setItem('ca-theme', t); } catch (e) { /* storage unavailable */ }
+    document.dispatchEvent(new CustomEvent('ca:theme', { detail: t }));
   });
 
-  document.addEventListener('keydown', e => {
-    const tag = (e.target.tagName || '').toLowerCase();
-    if (['input', 'select', 'textarea'].includes(tag) || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.key.toLowerCase() === 'd') document.getElementById('theme').click();
-  });
-
-  // auto-dismiss success flashes
-  document.querySelectorAll('.flash.success').forEach(f => setTimeout(() => {
-    f.style.transition = 'opacity .4s'; f.style.opacity = '0'; setTimeout(() => f.remove(), 450);
-  }, 6000));
-
-  // confirm before destructive form posts
   document.querySelectorAll('form[data-confirm]').forEach(f =>
     f.addEventListener('submit', e => { if (!confirm(f.dataset.confirm)) e.preventDefault(); }));
+
+  // Poll the database change counter. Pages that show live data listen for `ca:data-changed`.
+  const status = document.getElementById('dbStatus');
+  const updated = document.getElementById('dbUpdated');
+  const navOrders = document.getElementById('navOrders');
+  const time = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  let version = window.CA.version;
+  async function poll() {
+    if (document.hidden) return;
+    try {
+      const r = await fetch(window.CA.versionUrl, { cache: 'no-store' });
+      const v = await r.json();
+      status.classList.remove('offline');
+      navOrders.textContent = v.orders.toLocaleString();
+      if (v.version !== version) {
+        version = v.version;
+        updated.textContent = 'Updated ' + time();
+        document.dispatchEvent(new CustomEvent('ca:data-changed', { detail: v }));
+      }
+    } catch (e) {
+      status.classList.add('offline');
+      updated.textContent = 'Server not reachable';
+    }
+  }
+  setInterval(poll, 4000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 })();

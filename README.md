@@ -126,7 +126,7 @@ flowchart LR
 
 | Page | What it does |
 |------|--------------|
-| **Dashboard** `/` | Overview and Customers & service tabs; Country / Segment / Category filters; every KPI, chart and interpretation sentence computed by SQL from the live database. Polls a change counter and refreshes itself when the data changes. |
+| **Analytics** `/` and `/analytics/customers` | Overview and Customers & service pages; Country / Segment / Category filters (kept in the URL, so a filtered view can be bookmarked); every KPI, chart and takeaway line computed by SQL from the live database; a Chart / Table switch on every chart. Polls a change counter and refreshes itself when the data changes. Light and dark themes. |
 | **Orders** `/orders` | Search, filter, sort and page through orders; add, edit, delete. The form shows the customer's profile as you type their ID and a live order total. |
 | **Customers** `/customers` | Same for customers, with order count and net spend per customer. A customer who still has orders can't be deleted. |
 | **API** | `/api/analytics?country=&segment=&category=` (all dashboard numbers as JSON), `/api/version`, `/api/customers/<id>` |

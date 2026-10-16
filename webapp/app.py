@@ -20,7 +20,7 @@ from __future__ import annotations
 import math
 import secrets
 import sqlite3
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from flask import (Flask, abort, flash, g, jsonify, redirect, render_template, request, session, url_for)
@@ -175,7 +175,14 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
 
     @app.context_processor
     def _globals():
-        return {"csrf_token": csrf_token, "C": dbm, "today": date.today().isoformat()}
+        conn = db()
+        nav = {
+            "orders": conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0],
+            "customers": conn.execute("SELECT COUNT(*) FROM customers").fetchone()[0],
+            "version": conn.execute("SELECT value FROM meta WHERE key='data_version'").fetchone()[0],
+            "loaded_at": datetime.now().strftime("%H:%M"),
+        }
+        return {"csrf_token": csrf_token, "C": dbm, "today": date.today().isoformat(), "nav": nav}
 
     @app.template_filter("money")
     def _money(v):
@@ -196,11 +203,20 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
         return page, pages, (page - 1) * PAGE_SIZE
 
     # ---- dashboard + API ------------------------------------------------------------------
+    def _analytics_page(view: str):
+        conn = db()
+        span = conn.execute("SELECT MIN(order_date), MAX(order_date) FROM orders").fetchone()
+        return render_template("dashboard.html", opts=options(conn), view=view,
+                               active="overview" if view == "overview" else "service",
+                               span=(date.fromisoformat(span[0]), date.fromisoformat(span[1])))
+
     @app.get("/")
     def dashboard():
-        conn = db()
-        return render_template("dashboard.html", opts=options(conn), active="dashboard",
-                               version=conn.execute("SELECT value FROM meta WHERE key='data_version'").fetchone()[0])
+        return _analytics_page("overview")
+
+    @app.get("/analytics/customers")
+    def dashboard_customers():
+        return _analytics_page("customers")
 
     @app.get("/api/analytics")
     def api_analytics():
@@ -272,7 +288,7 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
         except sqlite3.IntegrityError as exc:
             return _order_form(errors={"_": f"The database rejected this order: {exc}"}, form=request.form), 422
         total = conn.execute("SELECT total_amount FROM v_orders WHERE order_id = ?", (d["order_id"],)).fetchone()[0]
-        flash(f"Order {d['order_id']} added (${total:,.2f}). The dashboard has been updated.", "success")
+        flash(f"Order {d['order_id']} created for ${total:,.2f}.", "success")
         return redirect(url_for("orders", highlight=d["order_id"]))
 
     @app.route("/orders/<order_id>/edit", methods=["GET", "POST"])
@@ -348,7 +364,7 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
         d["customer_id"] = dbm.next_id(conn, "customers", "customer_id", "C", 4)
         with conn:
             conn.execute(f"INSERT INTO customers ({', '.join(d)}) VALUES ({', '.join('?' * len(d))})", list(d.values()))
-        flash(f"Customer {d['customer_id']} added — you can now record orders for them.", "success")
+        flash(f"Customer {d['customer_id']} created." + (" Add their first order below." if request.form.get("then") == "order" else ""), "success")
         return redirect(url_for("order_new", customer_id=d["customer_id"]) if request.form.get("then") == "order"
                         else url_for("customers", q=d["customer_id"]))
 
@@ -379,8 +395,8 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
                   "success" if n else "error")
         except sqlite3.IntegrityError:
             cnt = conn.execute("SELECT COUNT(*) FROM orders WHERE customer_id = ?", (customer_id,)).fetchone()[0]
-            flash(f"Customer {customer_id} still has {cnt} order(s). The database protects that link — "
-                  f"delete their orders first.", "error")
+            flash(f"{customer_id} still has {cnt} order{'s' if cnt != 1 else ''}, so it can't be deleted. "
+                  f"Delete those orders first.", "error")
         return redirect(safe_next(request.form.get("next"), url_for("customers")))
 
     # ---- admin ----------------------------------------------------------------------------
@@ -390,7 +406,7 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
         if conn is not None:
             conn.close()
         report = dbm.build_database(app.config["DATABASE"])
-        flash(f"Database reset from the cleaned CSV: {report['orders']:,} orders, {report['customers']:,} customers.",
+        flash(f"Data restored from the cleaned dataset: {report['orders']:,} orders, {report['customers']:,} customers.",
               "success")
         return redirect(safe_next(request.form.get("next"), url_for("dashboard")))
 

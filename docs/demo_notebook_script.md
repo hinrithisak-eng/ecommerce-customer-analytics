@@ -231,26 +231,26 @@ and mention the rest exist.
 ## Close with the live web app ⏱ 2.5 min  ← the memorable finish
 
 **Before the demo:** in a terminal run `python webapp/app.py --reset` (fresh data), leave it running, and
-open **two browser windows side by side**: left = `http://127.0.0.1:5000` (Dashboard),
-right = `http://127.0.0.1:5000/orders/new` (Add order).
+open **two browser windows side by side**: left = `http://127.0.0.1:5000` (Overview),
+right = `http://127.0.0.1:5000/orders/new` (New order).
 
-**SAY (left window, Dashboard):**
+**SAY (left window, Overview):**
 > "Everything you just saw in the notebook now runs as a web app on a real database. The cleaned CSV is
 > loaded into SQLite — customers and orders as two linked tables — and every number here is a SQL query
 > against it. 1,972 orders, $227,155 of net revenue — the same figures as the notebook."
 
-**DO:** Change **Country → Cambodia**, then **Reset**.
+**DO:** Change **Country → Cambodia**, then **Clear filters**. Flip one chart to **Table** to show the numbers behind it.
 > "Filters run new SQL queries — the KPIs and charts recompute live."
 
-**DO (right window):** type `C1122` in Customer ID — the green card shows who it is. Fill in:
+**DO (right window):** type `C1122` in Customer ID — the customer details appear under the field. Fill in:
 Electronics · quantity 3 · price 299.99 · discount 5 · E-Wallet · delivery 2 days · rating 5.
-Point at the **Order total $854.97** updating as you type. Click **Add order**.
+Point at the **Summary** panel on the right: the total ($854.97) updates as you type. Click **Create order**.
 
-**SAY (look at the left window — within ~4 seconds it refreshes by itself):**
+**SAY (look at the left window — within a few seconds it refreshes by itself; the changed KPIs briefly highlight):**
 > "And the dashboard picked it up on its own — orders went from 1,972 to 1,973 and revenue up by $855.
 > The database bumps a change counter on every write, and the dashboard polls it."
 
-**DO (right window):** click **Add order** again, type customer `C9999`, quantity `0`, status **Cancelled**,
+**DO (right window):** click **New order** again, type customer `C9999`, quantity `0`, status **Cancelled**,
 and submit.
 > "It validates against the same business rules as the cleaning pipeline in §8 — unknown customer,
 > impossible quantity, a cancelled order can't have a delivery time. And the database enforces the
@@ -264,7 +264,7 @@ and submit.
 > statistics, and serves the results from a database as a live web app — with 39 automated tests and CI
 > checking all of it on every push. Happy to take questions."
 
-**After the demo:** click **Reset demo data** in the page footer (or rerun `python webapp/app.py --reset`)
+**After the demo:** click **Reset data** at the bottom of the sidebar (or rerun `python webapp/app.py --reset`)
 to restore the original 1,972 orders.
 
 > **Fallback:** if the server won't start, open `docs/dashboard.html` — the same charts with filters,

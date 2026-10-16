@@ -1,55 +1,57 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
+{% from "_icons.html" import icon %}<!DOCTYPE html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}E-commerce Customer Analytics{% endblock %}</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='40' height='40' rx='10' fill='%23FFFFFF'/%3E%3Crect x='9' y='21' width='5.2' height='10' rx='1.6' fill='%239DB2F0'/%3E%3Crect x='17.4' y='16' width='5.2' height='15' rx='1.6' fill='%231E2761'/%3E%3Crect x='25.8' y='11' width='5.2' height='20' rx='1.6' fill='%23F59E0B'/%3E%3C/svg%3E">
+<title>{% block title %}Customer Analytics{% endblock %}</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='32' height='32' rx='7' fill='%2312151a'/%3E%3Crect x='8' y='15' width='4' height='9' rx='1' fill='%23fff'/%3E%3Crect x='14' y='11' width='4' height='13' rx='1' fill='%23fff'/%3E%3Crect x='20' y='7' width='4' height='17' rx='1' fill='%2357a0f5'/%3E%3C/svg%3E">
 <script>
-  // apply the saved / OS theme before first paint (no flash of the wrong theme)
-  (function(){var t=null;try{t=localStorage.getItem('eca-theme');}catch(e){}
-    if(!t&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)t='dark';
-    if(t)document.documentElement.dataset.theme=t;})();
+  // Apply the saved (or OS) theme before first paint to avoid a flash of the wrong theme.
+  (function () { var t = null; try { t = localStorage.getItem('ca-theme'); } catch (e) {}
+    if (!t && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) t = 'dark';
+    if (t) document.documentElement.dataset.theme = t; })();
 </script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
 </head>
 <body>
-<div class="topbar">
-  <div class="bar">
-    <a class="brand" href="{{ url_for('dashboard') }}">
-      <div class="mark"><svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Analytics logo"><rect width="40" height="40" rx="10" fill="url(#lg)"/><polyline points="11.6,19.4 20,14.4 28.4,9.4" fill="none" stroke="#1E2761" stroke-opacity=".26" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="9" y="21" width="5.2" height="10" rx="1.6" fill="#9DB2F0"/><rect x="17.4" y="16" width="5.2" height="15" rx="1.6" fill="#1E2761"/><rect x="25.8" y="11" width="5.2" height="20" rx="1.6" fill="#F59E0B"/><circle cx="28.4" cy="9.4" r="2.3" fill="#F59E0B" stroke="#FFFFFF" stroke-width="1.3"/><defs><linearGradient id="lg" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#EDF1FB"/></linearGradient></defs></svg></div>
-      <div><h1>E-commerce Customer Analytics</h1><div class="sub">7 Southeast-Asian markets · live SQLite database</div></div>
-    </a>
-    <nav class="mainnav">
-      <a href="{{ url_for('dashboard') }}" class="{{ 'on' if active=='dashboard' }}"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>Dashboard</a>
-      <a href="{{ url_for('orders') }}" class="{{ 'on' if active=='orders' }}"><svg viewBox="0 0 24 24"><path d="M6 2l-2 4v14a2 2 0 002 2h12a2 2 0 002-2V6l-2-4z"/><path d="M4 6h16"/><path d="M16 10a4 4 0 01-8 0"/></svg>Orders</a>
-      <a href="{{ url_for('customers') }}" class="{{ 'on' if active=='customers' }}"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21v-1a6 6 0 0112 0v1"/><path d="M16 4a4 4 0 010 8M22 21v-1a6 6 0 00-4-5.6"/></svg>Customers</a>
-    </nav>
-    <div class="right">
-      <span class="live" title="Data is read from the SQLite database on every request"><span class="dot"></span><span id="liveText">Live · SQLite</span></span>
-      <button class="icon-btn" id="theme" title="Toggle dark mode (D)" aria-label="Toggle dark mode">
-        <svg class="moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
-        <svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-      </button>
+<aside class="sidebar" aria-label="Main navigation">
+  <a class="product" href="{{ url_for('dashboard') }}">
+    <span class="product-mark"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="8" width="3" height="6" rx=".6" fill="#fff"/><rect x="6.5" y="5" width="3" height="9" rx=".6" fill="#fff"/><rect x="11" y="2" width="3" height="12" rx=".6" fill="#57a0f5"/></svg></span>
+    <span><span class="product-name">Customer Analytics</span><br><span class="product-sub">SEA e-commerce</span></span>
+  </a>
+  <nav class="nav-group">
+    <div class="nav-label">Analytics</div>
+    <a class="nav-item {{ 'on' if active == 'overview' }}" href="{{ url_for('dashboard') }}">{{ icon('overview') }}Overview</a>
+    <a class="nav-item {{ 'on' if active == 'service' }}" href="{{ url_for('dashboard_customers') }}">{{ icon('activity') }}Customers &amp; service</a>
+  </nav>
+  <nav class="nav-group">
+    <div class="nav-label">Records</div>
+    <a class="nav-item {{ 'on' if active == 'orders' }}" href="{{ url_for('orders') }}">{{ icon('receipt') }}Orders<span class="count" id="navOrders">{{ '{:,}'.format(nav.orders) }}</span></a>
+    <a class="nav-item {{ 'on' if active == 'customers' }}" href="{{ url_for('customers') }}">{{ icon('users') }}Customers<span class="count">{{ '{:,}'.format(nav.customers) }}</span></a>
+  </nav>
+  <div class="sidebar-foot">
+    <div class="db-status" id="dbStatus" title="Every page reads from webapp/instance/ecommerce.db"><span class="dot"></span><span>SQLite database</span></div>
+    <div class="db-updated" id="dbUpdated">Data as of {{ nav.loaded_at }}</div>
+    <div class="foot-actions">
+      <button class="btn btn-sm icon-btn" id="theme" type="button" aria-label="Switch theme" title="Switch light / dark">{{ icon('moon', 'theme-moon') }}{{ icon('sun', 'theme-sun') }}</button>
+      <form method="post" action="{{ url_for('admin_reset') }}" data-confirm="Restore the original 1,972 orders? Orders and customers you added or edited will be removed.">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+        <button class="btn btn-sm" type="submit" title="Rebuild the database from the cleaned CSV">{{ icon('reset') }}Reset data</button>
+      </form>
     </div>
   </div>
-  {% block subbar %}{% endblock %}
+</aside>
+
+<div class="main">
+  <div class="content">
+    {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat, m in msgs %}
+    <div class="notice {{ cat }}" role="status">{{ icon('check' if cat == 'success' else 'alert') }}<span>{{ m }}</span><button class="close" type="button" aria-label="Dismiss" onclick="this.parentElement.remove()">×</button></div>
+    {% endfor %}{% endwith %}
+    {% block content %}{% endblock %}
+  </div>
 </div>
-
-{% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}
-<div class="flashes">{% for cat, m in msgs %}<div class="flash {{ cat }}" role="status">{{ m }}<button type="button" aria-label="Dismiss" onclick="this.parentElement.remove()">×</button></div>{% endfor %}</div>
-{% endif %}{% endwith %}
-
-<main>{% block content %}{% endblock %}</main>
-
-<footer>
-  Flask + SQLite · data from <code>data/processed/ecommerce_orders_clean.csv</code>, loaded into <code>webapp/instance/ecommerce.db</code>
-  <form method="post" action="{{ url_for('admin_reset') }}" onsubmit="return confirm('Rebuild the database from the cleaned CSV? All orders and customers you added or edited will be lost.')">
-    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
-    <button class="btn sm" type="submit" title="Restore the original 1,972 orders">Reset demo data</button>
-  </form>
-</footer>
-<div class="toast" id="toast"><span class="dot"></span><span id="toastText"></span></div>
+<style>.theme-sun{display:none}[data-theme="dark"] .theme-sun{display:block}[data-theme="dark"] .theme-moon{display:none}</style>
+<script>window.CA = {versionUrl: "{{ url_for('api_version') }}", version: {{ nav.version }}};</script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>

@@ -1,54 +1,59 @@
 {% extends "base.html" %}
 {% from "_macros.html" import sort_th, pager %}
-{% block title %}Customers · E-commerce Customer Analytics{% endblock %}
+{% block title %}Customers · Customer Analytics{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div><h2>Customers</h2><p>{{ '{:,}'.format(grand_total) }} customers in the database, each linked to their orders. A customer with orders can't be deleted — the database protects that relationship.</p></div>
-  <a class="btn primary" href="{{ url_for('customer_new') }}"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add customer</a>
-</div>
+{% set filtered = args.get('q') or args.get('country') or args.get('segment') %}
+<header class="page-header">
+  <div>
+    <div class="crumbs">Records</div>
+    <h1>Customers</h1>
+    <div class="page-meta">{{ '{:,}'.format(grand_total) }} customers{% if filtered %} · {{ '{:,}'.format(total) }} shown{% endif %}</div>
+  </div>
+  <div class="page-actions"><a class="btn btn-primary" href="{{ url_for('customer_new') }}">{{ icon('plus') }}New customer</a></div>
+</header>
 
-<form class="toolbar" method="get" action="{{ url_for('customers') }}">
-  <div class="field grow"><label for="q">Search</label><input type="search" id="q" name="q" value="{{ args.get('q','') }}" placeholder="Customer ID or city"></div>
-  <div class="field"><label for="country">Country</label><select id="country" name="country" onchange="this.form.submit()"><option value="">All countries</option>{% for c in opts.countries %}<option {{ 'selected' if args.get('country')==c }}>{{ c }}</option>{% endfor %}</select></div>
-  <div class="field"><label for="segment">Segment</label><select id="segment" name="segment" onchange="this.form.submit()"><option value="">All segments</option>{% for s in C.SEGMENTS %}<option {{ 'selected' if args.get('segment')==s }}>{{ s }}</option>{% endfor %}</select></div>
-  <button class="btn" type="submit">Search</button>
-  {% if args.get('q') or args.get('country') or args.get('segment') %}<a class="btn" href="{{ url_for('customers') }}">Clear</a>{% endif %}
+<form class="filterbar" method="get" action="{{ url_for('customers') }}" role="search">
+  <label class="search">{{ icon('search') }}<input type="search" name="q" value="{{ args.get('q','') }}" placeholder="Search customer ID or city" aria-label="Search customers"></label>
+  <select name="country" aria-label="Country" class="{{ 'is-set' if args.get('country') }}" onchange="this.form.submit()"><option value="">All countries</option>{% for c in opts.countries %}<option {{ 'selected' if args.get('country')==c }}>{{ c }}</option>{% endfor %}</select>
+  <select name="segment" aria-label="Segment" class="{{ 'is-set' if args.get('segment') }}" onchange="this.form.submit()"><option value="">All segments</option>{% for s in C.SEGMENTS %}<option {{ 'selected' if args.get('segment')==s }}>{{ s }}</option>{% endfor %}</select>
+  {% if args.get('sort') %}<input type="hidden" name="sort" value="{{ sort }}"><input type="hidden" name="dir" value="{{ dir }}">{% endif %}
+  {% if filtered %}<a class="btn btn-ghost" href="{{ url_for('customers') }}">Clear filters</a>{% endif %}
 </form>
 
 <div class="table-wrap">
-<table>
+<table class="data">
   <thead><tr>
     {{ sort_th('customers', args, 'customer_id', 'Customer', sort, dir) }}
-    {{ sort_th('customers', args, 'age', 'Age', sort, dir, 'n') }}
+    {{ sort_th('customers', args, 'age', 'Age', sort, dir, 'r') }}
     <th>Gender</th>
     {{ sort_th('customers', args, 'country', 'Country', sort, dir) }}
     <th>City</th>
     {{ sort_th('customers', args, 'customer_segment', 'Segment', sort, dir) }}
     <th>Channel</th>
-    {{ sort_th('customers', args, 'orders', 'Orders', sort, dir, 'n') }}
-    {{ sort_th('customers', args, 'spent', 'Net spend', sort, dir, 'n') }}
+    {{ sort_th('customers', args, 'orders', 'Orders', sort, dir, 'r') }}
+    {{ sort_th('customers', args, 'spent', 'Net spend', sort, dir, 'r') }}
     {{ sort_th('customers', args, 'last_order', 'Last order', sort, dir) }}
-    <th class="n">Actions</th>
+    <th><span class="sr-only">Actions</span></th>
   </tr></thead>
   <tbody>
   {% for r in rows %}
     <tr>
-      <td class="mono">{{ r.customer_id }}</td>
-      <td class="n">{{ r.age }}</td>
+      <td class="id">{{ r.customer_id }}</td>
+      <td class="r">{{ r.age }}</td>
       <td>{{ r.gender }}</td>
       <td>{{ r.country }}</td>
       <td>{{ r.city }}</td>
       <td>{{ r.customer_segment }}</td>
       <td>{{ r.acquisition_channel }}</td>
-      <td class="n">{% if r.orders %}<a href="{{ url_for('orders', q=r.customer_id) }}">{{ r.orders }}</a>{% else %}<span class="muted">0</span>{% endif %}</td>
-      <td class="n"><b>{{ r.spent | money }}</b></td>
-      <td>{{ r.last_order or '—' }}</td>
-      <td class="n"><div class="actions">
-        <a class="btn sm" href="{{ url_for('order_new', customer_id=r.customer_id) }}">+ Order</a>
-        <a class="btn sm" href="{{ url_for('customer_edit', customer_id=r.customer_id) }}">Edit</a>
+      <td class="r">{% if r.orders %}<a href="{{ url_for('orders', q=r.customer_id) }}">{{ r.orders }}</a>{% else %}<span class="muted">0</span>{% endif %}</td>
+      <td class="r">{{ r.spent | money }}</td>
+      <td class="num">{{ r.last_order or '–' }}</td>
+      <td><div class="row-actions">
+        <a href="{{ url_for('order_new', customer_id=r.customer_id) }}">New order</a>
+        <a href="{{ url_for('customer_edit', customer_id=r.customer_id) }}">Edit</a>
         <form method="post" action="{{ url_for('customer_delete', customer_id=r.customer_id) }}" data-confirm="Delete customer {{ r.customer_id }}?">
           <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.full_path }}">
-          <button class="btn sm danger" type="submit">Delete</button></form>
+          <button class="link-btn link-danger" type="submit">Delete</button></form>
       </div></td>
     </tr>
   {% else %}

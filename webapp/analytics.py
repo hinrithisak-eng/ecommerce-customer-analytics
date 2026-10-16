@@ -70,7 +70,8 @@ def compute(conn: sqlite3.Connection, country: str = "", segment: str = "", cate
         """SELECT customer_segment AS k, COUNT(*) AS n, COUNT(DISTINCT customer_id) AS c,
                   AVG(total_amount) AS aov, SUM(net_revenue) AS rev
            FROM v_orders {W} GROUP BY k""")}
-    out["segments"] = [{"k": s, "orders_per_customer": r["n"] / r["c"], "aov": r["aov"], "rev_per_customer": r["rev"] / r["c"]}
+    out["segments"] = [{"k": s, "customers": r["c"], "orders": r["n"], "orders_per_customer": r["n"] / r["c"],
+                        "aov": r["aov"], "rev_per_customer": r["rev"] / r["c"]}
                        for s in ("New", "Regular", "VIP") if (r := seg_rows.get(s))]
 
     # Recency is measured from the day after the latest order in the database, so it
@@ -141,5 +142,6 @@ def compute(conn: sqlite3.Connection, country: str = "", segment: str = "", cate
            FROM v_orders {W} AND review_rating IS NOT NULL AND order_status IN ('Delivered','Returned')
            GROUP BY s""")}
     out["rating_by_status"] = [{"s": s, "rating": rs[s]["rating"] if s in rs else None,
-                                "low": rs[s]["low"] if s in rs else None} for s in ("Delivered", "Returned")]
+                                "low": rs[s]["low"] if s in rs else None, "n": rs[s]["n"] if s in rs else 0}
+                               for s in ("Delivered", "Returned")]
     return out

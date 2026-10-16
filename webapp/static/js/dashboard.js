@@ -1,270 +1,367 @@
-// Live dashboard: every number comes from /api/analytics (SQL over the SQLite database).
+// Analytics pages. One fetch of /api/analytics per filter change; every chart and
+// table on the page is drawn from that response.
 (function () {
-  const CFG = window.ECA_CONFIG;
-  const root = document.documentElement;
+  const CFG = window.DASH;
   const $ = id => document.getElementById(id);
-  const cssv = n => getComputedStyle(root).getPropertyValue(n).trim();
-  const fmt$ = v => '$' + Math.round(v).toLocaleString();
-  const pct = v => (v * 100).toFixed(1) + ' %';
-  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const mlabel = m => MON[+m.slice(5, 7) - 1] + " '" + m.slice(2, 4);
+  const root = document.documentElement;
+  const sel = { country: $('fCountry'), segment: $('fSegment'), category: $('fCategory') };
+  const charts = {};
+  const endLabel = {};          // canvas id -> formatter for the value printed at the end of each bar
+  let last = null, ctrl = null, prevKpi = {};
 
-  // ---------------- state ----------------
-  const params = new URLSearchParams(location.search);
-  let TAB = params.get('tab') === 'customers' ? 'customers' : 'overview';
-  let DATA = null, inflight = null, version = CFG.initialVersion;
-  const charts = {}, VL = {}, prevK = {};
-  ['country', 'segment', 'category'].forEach(k => { const v = params.get(k); if (v) $('f' + k[0].toUpperCase() + k.slice(1)).value = v; });
+  // ------------------------------------------------------------------ formatting
+  const nf0 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+  const nf2 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const num = v => nf0.format(v);
+  const usd = v => '$' + nf0.format(v);
+  const usd2 = v => '$' + nf2.format(v);
+  const usdK = v => Math.abs(v) >= 1000 ? '$' + (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k' : '$' + nf0.format(v);
+  const pct = (v, d = 1) => (v * 100).toFixed(d) + '%';
+  const monthName = m => new Date(m + '-01T00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  const monthShort = m => new Date(m + '-01T00:00').toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  // ---------------- palette + Chart.js defaults (re-run on theme change) ----------------
-  let P = {};
-  function palette() {
-    const dark = root.dataset.theme === 'dark';
-    P = { navy: cssv('--brandInk'), amber: cssv('--amber'), teal: cssv('--teal'), red: cssv('--red'), blue: cssv('--blue'),
-      ice: cssv('--ice'), ink: cssv('--ink'), grid: cssv('--grid'), tick: cssv('--tick'), tip: cssv('--tooltipBg'),
-      surface: cssv('--surface'), set: [cssv('--blue'), cssv('--amber'), cssv('--teal'), cssv('--red'), '#A78BFA'],
-      mint: dark ? '#0E9F6E' : '#6EE7B7', softG: dark ? '#0B5E45' : '#A7F3D0', softR: dark ? '#7F1D1D' : '#FECACA',
-      bubble: dark ? 'rgba(96,165,250,.40)' : 'rgba(37,99,235,.40)' };
+  // ------------------------------------------------------------------ theme
+  let T = {};
+  function readTheme() {
+    const cs = getComputedStyle(root), v = n => cs.getPropertyValue(n).trim();
+    T = {
+      s: [1, 2, 3, 4, 5].map(i => v('--series-' + i)), muted: v('--series-muted'),
+      ink: v('--ink'), ink2: v('--ink-2'), tick: v('--tick'), grid: v('--grid'), base: v('--baseline'),
+      surface: v('--surface'), tipBg: v('--tooltip-bg'), tipInk: v('--tooltip-ink'),
+      good: v('--good'), critical: v('--critical'), neutral: v('--neutral-dot'),
+    };
     const D = Chart.defaults;
-    D.font.family = 'Calibri, "Segoe UI", system-ui, sans-serif'; D.font.size = 13.5; D.color = P.tick;
-    D.animation = { duration: 600, easing: 'easeOutQuart' };
-    D.plugins.tooltip = { ...D.plugins.tooltip, backgroundColor: P.tip, titleColor: '#fff', bodyColor: '#E5E7EB', padding: 11,
-      cornerRadius: 8, displayColors: false, titleFont: { weight: '700', size: 13.5 }, bodyFont: { size: 13 } };
-    D.plugins.legend.labels = { ...D.plugins.legend.labels, usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 11, padding: 16, font: { size: 12.5 }, color: P.tick };
-    D.scale.title = { display: true, color: P.tick, font: { size: 13, weight: '600' }, padding: { top: 6, bottom: 4 } };
-    D.scale.ticks = { ...D.scale.ticks, font: { size: 12.5 }, color: P.tick };
-    D.scale.grid = { ...D.scale.grid, color: P.grid };
-    D.scale.border = { display: false };
-  }
-  // value labels drawn above bars
-  Chart.register({ id: 'vl', afterDatasetsDraw(c) {
-    const f = VL[c.canvas.id]; if (!f) return; const ctx = c.ctx; ctx.save();
-    ctx.font = '600 12.5px Calibri, "Segoe UI", sans-serif'; ctx.fillStyle = P.ink;
-    c.data.datasets.forEach((ds, i) => { const m = c.getDatasetMeta(i); if (m.hidden || m.type !== 'bar') return;
-      m.data.forEach((el, j) => { const v = ds.data[j]; if (v == null) return;
-        if (c.options.indexAxis === 'y') { ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(f(v, i), el.x + 6, el.y); }
-        else { ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText(f(v, i), el.x, el.y - 4); } }); });
-    ctx.restore(); } });
-
-  function mk(id, cfg, vlFmt) {
-    VL[id] = vlFmt || null;
-    const ex = charts[id];
-    if (ex && ex.config.type === cfg.type) { ex.data = cfg.data; ex.options = cfg.options; ex.update(); return; }
-    if (ex) ex.destroy();
-    charts[id] = new Chart($(id), cfg);
-  }
-  const base = (o = {}) => ({ maintainAspectRatio: false, ...o });
-  const bar = (labels, data, color, o = {}) => ({ type: 'bar',
-    data: { labels, datasets: [{ data, backgroundColor: color, borderRadius: 6, maxBarThickness: 56, hoverBackgroundColor: P.amber }] },
-    options: base({ plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => o.fmt ? o.fmt(c.raw) : c.raw } } },
-      scales: { x: { grid: { display: false }, title: { text: o.xt || '' } },
-        y: { beginAtZero: true, grace: '12%', title: { text: o.yt || '' }, ticks: { callback: v => o.tick ? o.tick(v) : v } } }, ...(o.extra || {}) }) });
-
-  // ---------------- KPIs ----------------
-  function countUp(el, to, fmt) {
-    const key = el.dataset.k, from = prevK[key] ?? 0; prevK[key] = to;
-    const t0 = performance.now(), d = 650;
-    (function step(t) { const p = Math.min(1, (t - t0) / d), e = 1 - Math.pow(1 - p, 3);
-      el.textContent = fmt(from + (to - from) * e); if (p < 1) requestAnimationFrame(step); })(t0);
-  }
-  function kpiRow(el, items, tag, flash) {
-    if (el.children.length !== items.length)
-      el.innerHTML = items.map((k, i) => `<div class="kpi ${k[3] || ''}"><div class="l">${k[0]}</div><div class="v" data-k="${tag}${i}"></div><div class="s"></div></div>`).join('');
-    items.forEach((k, i) => { const c = el.children[i]; const v = c.querySelector('.v');
-      if (flash && prevK[v.dataset.k] !== undefined && Math.abs(prevK[v.dataset.k] - k[1]) > 1e-9) { c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump'); }
-      countUp(v, k[1], k[2]); c.querySelector('.s').textContent = k[4]; });
+    D.font.family = getComputedStyle(document.body).fontFamily;
+    D.font.size = 12.5;
+    D.color = T.tick;
+    D.borderColor = T.grid;
+    D.animation.duration = 350;
+    D.maintainAspectRatio = false;
+    Object.assign(D.plugins.tooltip, {
+      backgroundColor: T.tipBg, titleColor: T.tipInk, bodyColor: T.tipInk, padding: 10, cornerRadius: 6,
+      displayColors: false, titleFont: { weight: '600' }, caretSize: 5,
+    });
+    D.plugins.legend.labels = Object.assign({}, D.plugins.legend.labels, {
+      color: T.ink2, boxWidth: 10, boxHeight: 10, padding: 14, font: { size: 13 },
+    });
   }
 
-  // ---------------- data loading ----------------
-  function filters() { return { country: $('fCountry').value, segment: $('fSegment').value, category: $('fCategory').value }; }
-  async function load(opts = {}) {
-    const f = filters();
-    const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v));
-    const shown = new URLSearchParams(qs); if (TAB !== 'overview') shown.set('tab', TAB);
-    history.replaceState(null, '', location.pathname + (shown.toString() ? '?' + shown : ''));
-    $('activeChips').innerHTML = Object.values(f).filter(Boolean).map(v => `<span class="chip">${v}</span>`).join('') || '<span class="chip">all orders</span>';
-    $('reset').disabled = !Object.values(f).some(Boolean);
-    if (inflight) inflight.abort();               // newest request wins — rapid clicks never race
-    inflight = new AbortController();
-    $('scope').classList.add('loading');
-    try {
-      const r = await fetch(CFG.api + '?' + qs, { signal: inflight.signal });
-      DATA = await r.json();
-      paint(opts.flash);
-    } catch (e) {
-      if (e.name !== 'AbortError') ECA.toast('Could not reach the server — is the app still running?');
-    } finally { $('scope').classList.remove('loading'); }
-  }
-
-  // ---------------- painting ----------------
-  function paint(flash) {
-    const d = DATA; if (!d) return;
-    $('scopeCount').textContent = d.n === d.total_orders ? `· all ${d.total_orders.toLocaleString()} orders in the database`
-      : `· ${d.n.toLocaleString()} of ${d.total_orders.toLocaleString()} orders (${pct(d.n / d.total_orders)})`;
-    if (!d.n) {
-      $('kpis').innerHTML = $('kpis2').innerHTML = '<div class="kpi wide"><div class="l">No match</div><div class="v">0</div><div class="s">No orders match these filters — widen them or press Reset.</div></div>';
-      Object.keys(charts).forEach(k => { charts[k].destroy(); delete charts[k]; });
-      document.querySelectorAll('.interp').forEach(i => i.innerHTML = '');
-      return;
-    }
-    if (TAB === 'overview') paintOverview(d, flash); else paintCustomers(d, flash);
-  }
-
-  function paintOverview(d, flash) {
-    const K = d.kpis;
-    kpiRow($('kpis'), [['Orders', K.orders, v => Math.round(v).toLocaleString(), '', 'valid orders in view'],
-      ['Net revenue', K.revenue, fmt$, '', 'delivered orders only'],
-      ['Avg order value', K.aov, fmt$, '', 'mean of total_amount'],
-      ['Median order value', K.median, fmt$, '', 'the typical order']], 'a', flash);
-
-    const cats = d.category;
-    mk('cCat', bar(cats.map(c => c.k), cats.map(c => c.rev / 1000), P.navy,
-      { fmt: v => '$' + v.toFixed(1) + 'k', tick: v => '$' + v + 'k', xt: 'Product category', yt: 'Net revenue (USD thousands)' }), v => '$' + v.toFixed(1) + 'k');
-    let cum = 0, k80 = 0; for (const c of cats) { cum += c.rev; k80++; if (cum / K.revenue >= 0.8) break; }
-    $('iCat').innerHTML = `<b>Interpretation</b> ${cats[0].k} leads with ${fmt$(cats[0].rev)} — ${pct(cats[0].rev / (K.revenue || 1))} of net revenue in this view. The top ${k80} categor${k80 > 1 ? 'ies' : 'y'} together account for at least 80 %.`;
-
-    const m = d.monthly;
-    mk('cMonth', { type: 'bar', data: { labels: m.map(x => mlabel(x.m)), datasets: [
-        { type: 'line', label: 'Net revenue (USD k)', data: m.map(x => x.rev / 1000), borderColor: P.navy, backgroundColor: P.navy, yAxisID: 'y1', tension: .3, pointRadius: 3.5, pointHoverRadius: 6, borderWidth: 2.5 },
-        { type: 'bar', label: 'Orders', data: m.map(x => x.n), backgroundColor: P.ice, hoverBackgroundColor: P.amber, yAxisID: 'y', borderRadius: 4 }] },
-      options: base({ interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom' },
-        tooltip: { displayColors: true, callbacks: { label: c => c.dataset.label + ': ' + (c.datasetIndex === 0 ? '$' + c.raw.toFixed(1) + 'k' : c.raw) } } },
-        scales: { x: { grid: { display: false }, title: { text: 'Month' } }, y: { position: 'left', beginAtZero: true, title: { text: 'Orders' } },
-          y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, title: { text: 'Net revenue (USD k)' }, ticks: { callback: v => '$' + v + 'k' } } } }) });
-    const peak = m.reduce((a, b) => (b.rev > a.rev ? b : a), m[0]), last = m[m.length - 1];
-    $('iMonth').innerHTML = `<b>Interpretation</b> The strongest month in this view is ${mlabel(peak.m)} with ${fmt$(peak.rev)} from ${peak.n} orders — the year-end peak. The latest month, ${mlabel(last.m)}, has ${last.n} orders; new orders you add appear here immediately.`;
-
-    mk('cHist', bar(d.histogram.labels, d.histogram.counts, P.blue, { fmt: v => v, xt: 'Order value band (USD)', yt: 'Number of orders' }), v => v);
-    $('iHist').innerHTML = `<b>Interpretation</b> Right-skewed: the mean (${fmt$(K.aov)}) sits well above the median (${fmt$(K.median)}). Most orders are under $150 and a long tail of large Electronics orders pulls the mean up, so the median is the better "typical order".`;
-
-    const st = d.status;
-    mk('cStatus', { type: 'doughnut', data: { labels: st.map(s => `${s.k} · ${pct(s.n / d.n)}`),
-        datasets: [{ data: st.map(s => s.n), backgroundColor: [P.teal, P.red, P.amber], borderWidth: 2, borderColor: P.surface, hoverOffset: 8 }] },
-      options: base({ cutout: '62%', plugins: { legend: { position: 'right' }, tooltip: { callbacks: { label: c => c.raw.toLocaleString() + ' orders' } } } }) });
-    $('iStatus').innerHTML = `<b>Interpretation</b> ${pct(K.return_rate + K.cancel_rate)} of orders end returned or cancelled and generate no net revenue — about ${fmt$(K.refunded)} of refunded value in this view.`;
-  }
-
-  function paintCustomers(d, flash) {
-    const R = d.retention, C = d.correlation, K = d.kpis;
-    kpiRow($('kpis2'), [['Customers', R.customers, v => Math.round(v).toLocaleString(), '', 'with at least one order in view'],
-      ['Repeat rate', R.repeat_rate, pct, 'good', 'ordered more than once'],
-      ['Dormant > 180 days', R.dormant_share, pct, 'warn', 'win-back target'],
-      ['Delivery ↔ rating', C.r, v => v.toFixed(2), '', `Pearson r · ${C.n.toLocaleString()} reviews`]], 'b', flash);
-
-    const S = d.segments;
-    mk('cSeg', { type: 'bar', data: { labels: S.map(s => s.k), datasets: [
-        { label: 'Orders per customer', data: S.map(s => s.orders_per_customer), backgroundColor: P.amber, yAxisID: 'y', borderRadius: 6, maxBarThickness: 58 },
-        { label: 'Average order value (USD)', data: S.map(s => s.aov), backgroundColor: P.navy, yAxisID: 'y1', borderRadius: 6, maxBarThickness: 58 }] },
-      options: base({ plugins: { legend: { position: 'bottom' }, tooltip: { displayColors: true, callbacks: { label: c => c.dataset.label + ': ' + (c.datasetIndex ? fmt$(c.raw) : c.raw.toFixed(2)) } } },
-        scales: { x: { grid: { display: false }, title: { text: 'Customer segment' } }, y: { beginAtZero: true, grace: '18%', title: { text: 'Orders per customer' } },
-          y1: { position: 'right', beginAtZero: true, grace: '18%', grid: { drawOnChartArea: false }, title: { text: 'Average order value (USD)' }, ticks: { callback: v => '$' + v } } } }) },
-      (v, i) => i ? '$' + Math.round(v) : v.toFixed(1));
-    $('iSeg').innerHTML = S.length > 1
-      ? `<b>Interpretation</b> ${S[S.length - 1].k} customers place ${S[S.length - 1].orders_per_customer.toFixed(1)} orders each versus ${S[0].orders_per_customer.toFixed(1)} for ${S[0].k}, while average order value stays flat (${S.map(s => fmt$(s.aov)).join(' / ')}). Lifetime value (${S.map(s => fmt$(s.rev_per_customer)).join(' / ')}) comes from frequency, not bigger baskets.`
-      : `<b>Interpretation</b> Single segment in view: ${S[0].orders_per_customer.toFixed(1)} orders per customer, ${fmt$(S[0].aov)} average order value.`;
-
-    const ch = d.churn, cust = R.customers;
-    mk('cChurn', { type: 'doughnut', data: { labels: [`High · >180 days · ${pct(ch.high / cust)}`, `Medium · 91–180 days · ${pct(ch.medium / cust)}`, `Low · ≤90 days · ${pct(ch.low / cust)}`],
-        datasets: [{ data: [ch.high, ch.medium, ch.low], backgroundColor: [P.red, P.amber, P.teal], borderWidth: 2, borderColor: P.surface, hoverOffset: 8 }] },
-      options: base({ cutout: '62%', plugins: { legend: { position: 'right' }, tooltip: { callbacks: { label: c => c.raw.toLocaleString() + ' customers' } } } }) });
-    $('iChurn').innerHTML = `<b>Interpretation</b> ${pct(R.repeat_rate)} of these ${cust.toLocaleString()} customers have ordered more than once and the top 20 % account for ${pct(R.top20_share)} of revenue — but ${pct(R.dormant_share)} have not ordered in over 180 days (measured from ${ch.snapshot}, the day after the latest order). That dormant group is the win-back target.`;
-
-    const co = d.country;
-    mk('cCountry', bar(co.map(c => c.k), co.map(c => c.rev / 1000), P.navy, { fmt: v => '$' + v.toFixed(1) + 'k',
-      extra: { indexAxis: 'y', scales: { x: { beginAtZero: true, grace: '15%', title: { text: 'Net revenue (USD thousands)' }, ticks: { callback: v => '$' + v + 'k' } },
-        y: { grid: { display: false }, title: { text: 'Country' } } } } }), v => '$' + v.toFixed(1) + 'k');
-    $('iCountry').innerHTML = `<b>Interpretation</b> ${co[0].k} leads with ${pct(co[0].rev / (K.revenue || 1))} of revenue from ${co[0].c} customers — ${fmt$(co[0].rev / co[0].c)} each.`;
-
-    const chs = d.channel, avg = d.rev_per_customer, worst = chs[chs.length - 1];
-    mk('cChan', bar(chs.map(c => c.k), chs.map(c => c.rpc), chs.map(c => c.rpc < avg * 0.85 ? P.red : P.amber),
-      { fmt: v => fmt$(v), tick: v => '$' + v, xt: 'Acquisition channel', yt: 'Net revenue per customer (USD)' }), v => fmt$(v));
-    $('iChan').innerHTML = `<b>Interpretation</b> Average revenue per customer is ${fmt$(avg)}. ${worst.k} is the weakest at ${fmt$(worst.rpc)} (${((worst.rpc / avg - 1) * 100).toFixed(0)} % versus average); ${chs[0].k} is the strongest at ${fmt$(chs[0].rpc)}.`;
-
-    const ages = Object.keys(d.payment_by_age), pays = ['Credit Card', 'E-Wallet', 'Bank Transfer', 'Cash on Delivery', 'PayPal'];
-    mk('cPay', { type: 'bar', data: { labels: ages, datasets: pays.map((p, i) => ({ label: p,
-        data: ages.map(a => 100 * (d.payment_by_age[a][p] || 0)), backgroundColor: P.set[i], borderRadius: 3, maxBarThickness: 44 })) },
-      options: base({ indexAxis: 'y', interaction: { mode: 'index' }, plugins: { legend: { position: 'bottom' },
-        tooltip: { displayColors: true, callbacks: { label: c => c.dataset.label + ': ' + c.raw.toFixed(1) + ' %' } } },
-        scales: { x: { stacked: true, max: 100, title: { text: 'Share of orders (%)' }, ticks: { callback: v => v + ' %' } },
-          y: { stacked: true, grid: { display: false }, title: { text: 'Age group' } } } }) });
-    const top = a => Object.entries(d.payment_by_age[a]).sort((x, y) => y[1] - x[1])[0];
-    $('iPay').innerHTML = `<b>Interpretation</b> ` + ages.map(a => `${a}: ${top(a)[0]} ${pct(top(a)[1])}`).join(' · ') + ` — the most-used method in each age group. A mobile-first checkout with card and E-Wallet options covers every group.`;
-
-    const B = d.delivery_bands, first = B.find(b => b.rating != null), lastB = [...B].reverse().find(b => b.rating != null);
-    mk('cDeliv', { type: 'bar', data: { labels: B.map(b => b.band), datasets: [{ data: B.map(b => b.rating), backgroundColor: [P.teal, P.mint, P.amber, P.red], borderRadius: 6, maxBarThickness: 70 }] },
-      options: base({ plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => (c.raw ?? 0).toFixed(2) + ' ★  ·  ' + B[c.dataIndex].n + ' reviews' } } },
-        scales: { x: { grid: { display: false }, title: { text: 'Delivery time band' } }, y: { min: 0, max: 5, title: { text: 'Mean review rating (1–5 ★)' } } } }) },
-      v => v.toFixed(2) + ' ★');
-    $('iDeliv').innerHTML = first && lastB ? `<b>Interpretation</b> Mean rating falls from ${first.rating.toFixed(2)}★ (${first.band}) to ${lastB.rating.toFixed(2)}★ (${lastB.band}). Pearson r = ${C.r.toFixed(2)} across ${C.n.toLocaleString()} reviewed orders — delivery speed is the clearest lever on satisfaction.` : '<b>Interpretation</b> Not enough reviewed orders in this view.';
-
-    mk('cScatter', { type: 'bubble', data: { datasets: [
-        { label: 'Reviews', data: d.scatter.map(p => ({ x: p.x, y: p.y, r: Math.sqrt(p.c) * 2.2, c: p.c })), backgroundColor: P.bubble, borderColor: P.blue, borderWidth: 1 },
-        { type: 'line', label: 'Trend · r = ' + C.r.toFixed(2), data: [{ x: 1, y: C.intercept + C.slope }, { x: 11, y: C.intercept + C.slope * 11 }], borderColor: P.red, borderWidth: 2.5, borderDash: [6, 4], pointRadius: 0 }] },
-      options: base({ plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => c.datasetIndex ? '' : `${c.raw.x} days → ${c.raw.y} ★  ·  ${c.raw.c} reviews` } } },
-        scales: { x: { min: 0, max: 12, title: { text: 'Delivery time (days)' }, grid: { display: false }, ticks: { stepSize: 1 } },
-          y: { min: 0.5, max: 5.5, ticks: { stepSize: 1, callback: v => v + ' ★' }, title: { text: 'Review rating' } } } }) });
-    $('iScatter').innerHTML = `<b>Interpretation</b> Bubble size is the number of reviews at each point. The fitted trend falls ${Math.abs(C.slope).toFixed(2)} stars per extra day of delivery (r = ${C.r.toFixed(2)}).`;
-
-    const rc = d.returns_by_category;
-    mk('cRet', bar(rc.map(c => c.k), rc.map(c => c.rate * 100), rc.map((c, i) => i === 0 ? P.red : P.navy),
-      { fmt: v => v.toFixed(1) + ' %', tick: v => v + ' %', xt: 'Product category', yt: 'Return rate (% of orders)' }), v => v.toFixed(1) + ' %');
-    $('iRet').innerHTML = `<b>Interpretation</b> ${rc[0].k} is returned most often (${pct(rc[0].rate)}), ${rc[rc.length - 1].k} least (${pct(rc[rc.length - 1].rate)}). In the notebook the chi-square test across categories was not significant (p = 0.23), so treat the ranking as indicative.`;
-
-    const rs = d.rating_by_status;
-    mk('cRateStatus', { type: 'bar', data: { labels: rs.map(r => r.s), datasets: [
-        { label: 'Mean rating (★)', data: rs.map(r => r.rating), backgroundColor: [P.teal, P.red], borderRadius: 6, maxBarThickness: 80, yAxisID: 'y' },
-        { label: 'Share of 1–2 ★ reviews (%)', data: rs.map(r => r.low == null ? null : r.low * 100), backgroundColor: [P.softG, P.softR], borderRadius: 6, maxBarThickness: 80, yAxisID: 'y1' }] },
-      options: base({ plugins: { legend: { position: 'bottom' }, tooltip: { displayColors: true, callbacks: { label: c => c.datasetIndex ? '1–2 ★ share: ' + c.raw.toFixed(1) + ' %' : 'Mean rating: ' + c.raw.toFixed(2) + ' ★' } } },
-        scales: { x: { grid: { display: false }, title: { text: 'Order status' } }, y: { min: 0, max: 5, title: { text: 'Mean review rating (★)' } },
-          y1: { position: 'right', min: 0, max: 100, grid: { drawOnChartArea: false }, title: { text: 'Share of 1–2 ★ reviews (%)' }, ticks: { callback: v => v + ' %' } } } }) },
-      (v, i) => i ? v.toFixed(1) + ' %' : v.toFixed(2) + ' ★');
-    const [dl, rt] = rs;
-    $('iRateStatus').innerHTML = dl.rating != null && rt.rating != null
-      ? `<b>Interpretation</b> Delivered orders average ${dl.rating.toFixed(2)}★ against ${rt.rating.toFixed(2)}★ for returned ones, and ${pct(rt.low)} of returned-order reviews are 1–2 stars versus ${pct(dl.low)} of delivered ones. A return is a satisfaction event, not just a logistics cost.`
-      : '<b>Interpretation</b> Not enough reviewed delivered and returned orders in this view to compare.';
-  }
-
-  // ---------------- interactions ----------------
-  function showTab(name) {
-    TAB = name;
-    document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
-    document.querySelectorAll('section.tab').forEach(s => s.classList.remove('active'));
-    const sec = $(name); void sec.offsetWidth; sec.classList.add('active');
-    const shown = new URLSearchParams(location.search); if (name === 'overview') shown.delete('tab'); else shown.set('tab', name);
-    history.replaceState(null, '', location.pathname + (shown.toString() ? '?' + shown : ''));
-    paint();
-    requestAnimationFrame(() => sec.querySelectorAll('canvas').forEach(cv => charts[cv.id] && charts[cv.id].resize()));
-  }
-  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
-  ['fCountry', 'fSegment', 'fCategory'].forEach(id => $(id).addEventListener('change', () => load()));
-  $('reset').onclick = () => { $('fCountry').value = $('fSegment').value = $('fCategory').value = ''; load(); };
-  document.addEventListener('keydown', e => {
-    const tag = (e.target.tagName || '').toLowerCase();
-    if (['input', 'select', 'textarea'].includes(tag) || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.key === '1') showTab('overview');
-    if (e.key === '2') showTab('customers');
-    if (e.key.toLowerCase() === 'r' && !$('reset').disabled) $('reset').click();
+  // value printed just past the end of each bar (selective labels: bars only, not lines)
+  Chart.register({
+    id: 'endLabels',
+    afterDatasetsDraw(c) {
+      const f = endLabel[c.canvas.id]; if (!f) return;
+      const ctx = c.ctx, horiz = c.options.indexAxis === 'y';
+      ctx.save();
+      ctx.font = '500 12.5px ' + Chart.defaults.font.family;
+      ctx.fillStyle = T.ink2;
+      c.getDatasetMeta(0).data.forEach((el, i) => {
+        const raw = c.data.datasets[0].data[i]; if (raw == null) return;
+        const txt = f(raw, i);
+        if (horiz) { ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(txt, el.x + 6, el.y); }
+        else { ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText(txt, el.x, el.y - 4); }
+      });
+      ctx.restore();
+    },
   });
-  ECA.onTheme.push(() => { palette(); Object.keys(charts).forEach(k => { charts[k].destroy(); delete charts[k]; }); paint(); });
 
-  // ---------------- live refresh: poll the DB change counter ----------------
-  async function poll() {
-    if (document.hidden) return;
-    try {
-      const v = await (await fetch(CFG.version, { cache: 'no-store' })).json();
-      $('liveText').textContent = `Live · ${v.orders.toLocaleString()} orders`;
-      if (v.version !== version) {
-        version = v.version;
-        ECA.toast('Database changed — dashboard refreshed');
-        load({ flash: true });
-      }
-    } catch (e) { $('liveText').textContent = 'Offline'; }
+  const axis = (extra = {}) => Object.assign({
+    grid: { color: T.grid, drawTicks: false, lineWidth: 1 },
+    border: { display: false },
+    ticks: { color: T.tick, padding: 8 },
+  }, extra);
+  const catAxis = (extra = {}) => Object.assign({
+    grid: { display: false }, border: { display: true, color: T.base }, ticks: { color: T.ink2, padding: 6 },
+  }, extra);
+
+  function draw(id, cfg, label) {
+    endLabel[id] = label || null;
+    const old = charts[id];
+    if (old && old.config.type === cfg.type) {
+      old.data = cfg.data; old.options = cfg.options; old.update();
+    } else {
+      if (old) old.destroy();
+      charts[id] = new Chart($(id), cfg);
+    }
   }
-  setInterval(poll, 4000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 
-  palette();
-  if (TAB !== 'overview') showTab(TAB);
+  const hbar = (id, labels, values, colors, fmt, tipFmt, pad = 64) => draw(id, {
+    type: 'bar',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: { topRight: 4, bottomRight: 4 },
+      borderSkipped: 'start', barPercentage: .72, categoryPercentage: .9, maxBarThickness: 26 }] },
+    options: {
+      indexAxis: 'y', layout: { padding: { right: pad } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => tipFmt(c.raw, c.dataIndex) } } },
+      scales: { x: axis({ beginAtZero: true, ticks: { color: T.tick, padding: 8, callback: v => fmt(v), maxTicksLimit: 5 } }), y: catAxis() },
+    },
+  }, fmt);
+
+  // ------------------------------------------------------------------ small DOM helpers
+  const sub = (id, text) => { const el = $('sub-' + id); if (el) el.textContent = text; };
+  function table(id, head, rows, right = []) {
+    const th = head.map((h, i) => `<th class="${right.includes(i) ? 'r' : ''}">${esc(h)}</th>`).join('');
+    const tr = rows.map(r => '<tr>' + r.map((v, i) => `<td class="${right.includes(i) ? 'r' : ''}">${esc(v)}</td>`).join('') + '</tr>').join('');
+    $('tbl-' + id).innerHTML = `<table class="mini"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
+  }
+  function partBar(container, parts, total, unit) {
+    const seg = parts.map(p => `<span style="flex:${p.n || 0} 1 0;background:${p.color}" title="${esc(p.label)}: ${num(p.n)}"></span>`).join('');
+    const li = parts.map(p => `<li><span class="sw" style="background:${p.color}"></span><span>${esc(p.label)}</span>` +
+      `<span class="v">${num(p.n)} ${unit}</span><span class="p">${total ? pct(p.n / total) : '–'}</span></li>`).join('');
+    container.innerHTML = `<div class="bars"><div class="seg" role="img" aria-label="${esc(parts.map(p => p.label + ' ' + num(p.n)).join(', '))}">${seg}</div><ul class="legend">${li}</ul></div>`;
+  }
+  const icon = d => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
+  function delta(cur, prev) {
+    if (!prev) return '';
+    const ch = (cur - prev) / prev, up = ch >= 0;
+    return `<span class="delta ${up ? 'up' : 'down'}">${icon(up ? 'M7 17L17 7M9 7h8v8' : 'M7 7l10 10M17 9v8H9')}${Math.abs(ch * 100).toFixed(1)}%</span>`;
+  }
+  function kpis(list) {
+    const box = $('kpis');
+    box.innerHTML = list.map(k => `<div class="kpi" data-k="${k.key}"><div class="kpi-label">${esc(k.label)}</div>` +
+      `<div class="kpi-value">${k.value}</div><div class="kpi-sub">${k.sub || '&nbsp;'}</div></div>`).join('');
+    list.forEach(k => {
+      if (prevKpi.flash && prevKpi[k.key] !== undefined && prevKpi[k.key] !== k.value) {
+        const el = box.querySelector(`[data-k="${k.key}"]`);
+        el.classList.add('changed'); setTimeout(() => el.classList.remove('changed'), 1800);
+      }
+      prevKpi[k.key] = k.value;
+    });
+    prevKpi.flash = false;
+  }
+
+  // ------------------------------------------------------------------ overview
+  function overview(d) {
+    const K = d.kpis, M = d.monthly;
+    const lm = M[M.length - 1], pm = M[M.length - 2];
+    const vs = pm ? ` vs ${monthName(pm.m).split(' ')[0]}` : '';
+    kpis([
+      { key: 'orders', label: 'Orders', value: num(K.orders), sub: pm ? `${delta(lm.n, pm.n)} ${monthName(lm.m).split(' ')[0]}${vs}` : '' },
+      { key: 'revenue', label: 'Net revenue', value: usd(K.revenue), sub: pm ? `${delta(lm.rev, pm.rev)} ${monthName(lm.m).split(' ')[0]}${vs}` : '' },
+      { key: 'aov', label: 'Average order value', value: usd2(K.aov), sub: `Median ${usd2(K.median)}` },
+      { key: 'rc', label: 'Returned or cancelled', value: pct(K.return_rate + K.cancel_rate), sub: `${usd(K.refunded)} not kept as revenue` },
+    ]);
+
+    // monthly net revenue: one measure, one axis. Order counts live in the tooltip and the table.
+    const best = M.reduce((a, b) => (b.rev > a.rev ? b : a), M[0]);
+    const avg = M.reduce((s, r) => s + r.rev, 0) / M.length;
+    sub('cMonth', `Averaging ${usd(avg)} a month. Highest: ${monthName(best.m)} at ${usd(best.rev)}.`);
+    draw('cMonth', {
+      type: 'line',
+      data: { labels: M.map(r => monthShort(r.m)), datasets: [{ data: M.map(r => r.rev), borderColor: T.s[0], borderWidth: 2,
+        backgroundColor: T.s[0], pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 12, tension: 0, fill: false }] },
+      options: {
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { display: false }, tooltip: { callbacks: {
+          title: c => monthName(M[c[0].dataIndex].m),
+          label: c => [`Net revenue  ${usd(c.raw)}`, `Orders  ${num(M[c.dataIndex].n)}`] } } },
+        scales: { x: catAxis({ ticks: { color: T.tick, padding: 6, maxRotation: 0, autoSkipPadding: 12 } }),
+          y: axis({ beginAtZero: true, ticks: { color: T.tick, padding: 8, callback: usdK, maxTicksLimit: 5 } }) },
+      },
+    });
+    table('cMonth', ['Month', 'Orders', 'Net revenue'], M.map(r => [monthName(r.m), num(r.n), usd2(r.rev)]), [1, 2]);
+
+    const C = d.category, catTotal = C.reduce((s, r) => s + r.rev, 0);
+    sub('cCat', C.length > 1 ? `${C[0].k} brings in ${pct(C[0].rev / catTotal, 0)} of net revenue; ${C[C.length - 1].k} ${pct(C[C.length - 1].rev / catTotal, 0)}.` : `${C[0].k} only.`);
+    hbar('cCat', C.map(r => r.k), C.map(r => r.rev), T.s[0], usdK, (v, i) => `${usd(v)} · ${num(C[i].n)} orders`);
+    table('cCat', ['Category', 'Orders', 'Net revenue', 'Share'], C.map(r => [r.k, num(r.n), usd2(r.rev), pct(r.rev / catTotal)]), [1, 2, 3]);
+
+    const S = d.status, colors = { Delivered: T.good, Returned: T.critical, Cancelled: T.neutral };
+    const kept = S.find(s => s.k === 'Delivered').n;
+    sub('outcomes', `${pct(kept / d.n)} of orders were delivered and kept.`);
+    partBar($('outcomes'), S.map(s => ({ label: s.k, n: s.n, color: colors[s.k] })), d.n, 'orders');
+
+    const H = d.histogram;
+    const under100 = H.counts.slice(0, 4).reduce((a, b) => a + b, 0);
+    sub('cHist', `${pct(under100 / d.n, 0)} of orders are under $100; a long tail runs past $1,000.`);
+    draw('cHist', {
+      type: 'bar',
+      data: { labels: H.labels, datasets: [{ data: H.counts, backgroundColor: T.s[0], borderRadius: { topLeft: 4, topRight: 4 },
+        borderSkipped: 'start', barPercentage: .94, categoryPercentage: .96 }] },
+      options: {
+        layout: { padding: { top: 18 } },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${num(c.raw)} orders (${pct(c.raw / d.n)})` } } },
+        scales: { x: catAxis({ ticks: { color: T.tick, padding: 6, maxRotation: 0, autoSkip: false, font: { size: 12 } } }),
+          y: axis({ beginAtZero: true, ticks: { color: T.tick, padding: 8, maxTicksLimit: 5 } }) },
+      },
+    }, v => v ? num(v) : '');
+    table('cHist', ['Order value', 'Orders', 'Share'], H.labels.map((l, i) => [l, num(H.counts[i]), pct(H.counts[i] / d.n)]), [1, 2]);
+  }
+
+  // ------------------------------------------------------------------ customers & service
+  function customers(d) {
+    const R = d.retention, cor = d.correlation;
+    kpis([
+      { key: 'cust', label: 'Customers', value: num(R.customers), sub: `${usd(d.rev_per_customer)} net revenue each` },
+      { key: 'repeat', label: 'Repeat customers', value: pct(R.repeat_rate), sub: 'Placed more than one order' },
+      { key: 'dormant', label: 'Dormant customers', value: pct(R.dormant_share), sub: 'No order in the last 180 days' },
+      { key: 'corr', label: 'Delivery time vs rating', value: (cor.r < 0 ? '−' : '') + Math.abs(cor.r).toFixed(2), sub: `Correlation across ${num(cor.n)} reviews` },
+    ]);
+
+    // segments: a comparison table reads better than four separate charts
+    const SG = d.segments, maxRpc = Math.max(...SG.map(s => s.rev_per_customer));
+    const nw = SG.find(s => s.k === 'New'), vip = SG.find(s => s.k === 'VIP');
+    sub('segments', nw && vip ? `A VIP customer is worth ${(vip.rev_per_customer / nw.rev_per_customer).toFixed(1)}× a new one. Top 20% of customers bring ${pct(R.top20_share, 0)} of revenue.`
+      : `Top 20% of customers bring ${pct(R.top20_share, 0)} of revenue.`);
+    $('segments').innerHTML = `<table class="mini"><thead><tr><th>Segment</th><th class="r">Customers</th><th class="r">Orders each</th>` +
+      `<th class="r">Avg order</th><th class="r" style="width:38%">Revenue per customer</th></tr></thead><tbody>` +
+      SG.map(s => `<tr><td>${esc(s.k)}</td><td class="r">${num(s.customers)}</td><td class="r">${s.orders_per_customer.toFixed(2)}</td>` +
+        `<td class="r">${usd2(s.aov)}</td><td class="r"><div class="databar"><i style="width:${(s.rev_per_customer / maxRpc * 100).toFixed(1)}%"></i>${usd(s.rev_per_customer)}</div></td></tr>`).join('') +
+      '</tbody></table>';
+
+    // recency bands are ordered, so one hue from light to dark rather than three unrelated colours
+    const ch = d.churn, tot = ch.high + ch.medium + ch.low;
+    const shade = p => `color-mix(in srgb, ${T.s[0]} ${p}%, ${T.surface})`;
+    sub('recency', `${pct(ch.high / tot, 0)} haven't ordered in more than 180 days, measured to ${new Date(ch.snapshot + 'T00:00').toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}.`);
+    partBar($('recency'), [
+      { label: 'Within 90 days', n: ch.low, color: shade(100) },
+      { label: '91–180 days', n: ch.medium, color: shade(60) },
+      { label: 'Over 180 days', n: ch.high, color: shade(40) },
+    ], tot, 'customers');
+
+    const CO = d.country, coTot = CO.reduce((s, r) => s + r.rev, 0);
+    sub('cCountry', CO.length > 1 ? `${CO[0].k} leads with ${pct(CO[0].rev / coTot, 0)} of net revenue.` : `${CO[0].k} only.`);
+    hbar('cCountry', CO.map(r => r.k), CO.map(r => r.rev), T.s[0], usdK, (v, i) => `${usd(v)} · ${num(CO[i].c)} customers`);
+    table('cCountry', ['Country', 'Customers', 'Net revenue', 'Share'], CO.map(r => [r.k, num(r.c), usd2(r.rev), pct(r.rev / coTot)]), [1, 2, 3]);
+
+    // channels: highlight the best, grey the rest
+    const CH = d.channel;
+    sub('cChan', CH.length > 1 ? `${CH[0].k} customers spend the most (${usd(CH[0].rpc)}); ${CH[CH.length - 1].k} the least (${usd(CH[CH.length - 1].rpc)}).` : '');
+    hbar('cChan', CH.map(r => r.k), CH.map(r => r.rpc), CH.map((_, i) => i === 0 ? T.s[0] : T.muted), usd, v => `${usd2(v)} per customer`);
+    table('cChan', ['Channel', 'Revenue per customer'], CH.map(r => [r.k, usd2(r.rpc)]), [1]);
+
+    // payment mix: 100% stacked, colour fixed per method (never by rank)
+    const PA = d.payment_by_age, ages = Object.keys(PA), methods = CFG.payments;
+    const lead = ages.map(a => methods.reduce((b, m) => ((PA[a][m] || 0) > (PA[a][b] || 0) ? m : b), methods[0]));
+    sub('cPay', ages.length ? `${lead[0]} leads among ${ages[0]}s; ${lead[lead.length - 1]} among ${ages[ages.length - 1]}.` : '');
+    draw('cPay', {
+      type: 'bar',
+      data: { labels: ages, datasets: methods.map((m, i) => ({ label: m, data: ages.map(a => (PA[a][m] || 0) * 100),
+        backgroundColor: T.s[i], borderColor: T.surface, borderWidth: { right: 2 }, borderSkipped: false, barPercentage: .7, maxBarThickness: 26 })) },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { position: 'top', align: 'start' },
+          tooltip: { displayColors: true, callbacks: { label: c => ` ${c.dataset.label}  ${c.raw.toFixed(1)}%` } } },
+        scales: { x: axis({ stacked: true, max: 100, ticks: { color: T.tick, padding: 8, callback: v => v + '%', stepSize: 25 } }),
+          y: catAxis({ stacked: true }) },
+      },
+    });
+    table('cPay', ['Age group', ...methods], ages.map(a => [a, ...methods.map(m => pct(PA[a][m] || 0))]), methods.map((_, i) => i + 1));
+
+    const B = d.delivery_bands, rated = B.filter(b => b.rating != null);
+    sub('cDeliv', rated.length > 1 ? `Average rating falls from ${rated[0].rating.toFixed(1)} (${rated[0].band}) to ${rated[rated.length - 1].rating.toFixed(1)} (${rated[rated.length - 1].band}).` : '');
+    draw('cDeliv', {
+      type: 'bar',
+      data: { labels: B.map(b => b.band), datasets: [{ data: B.map(b => b.rating), backgroundColor: T.s[0],
+        borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start', barPercentage: .6, maxBarThickness: 56 }] },
+      options: {
+        layout: { padding: { top: 20 } },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.raw == null ? '–' : c.raw.toFixed(2)} stars · ${num(B[c.dataIndex].n)} reviews` } } },
+        scales: { x: catAxis({ title: { display: true, text: 'Delivery time', color: T.tick } }),
+          y: axis({ min: 0, max: 5, ticks: { color: T.tick, padding: 8, stepSize: 1 }, title: { display: true, text: 'Average rating (1–5)', color: T.tick } }) },
+      },
+    }, v => v.toFixed(2));
+    table('cDeliv', ['Delivery time', 'Reviews', 'Average rating'], B.map(b => [b.band, num(b.n), b.rating == null ? '–' : b.rating.toFixed(2)]), [1, 2]);
+
+    // one bubble per (days, rating) pair, area ~ number of reviews; least-squares line on top
+    const P = d.scatter, maxC = Math.max(1, ...P.map(p => p.c));
+    const xs = P.map(p => p.x), x0 = Math.min(...xs), x1 = Math.max(...xs);
+    sub('cScatter', `r = ${cor.r.toFixed(2)}: each extra day of delivery costs about ${Math.abs(cor.slope).toFixed(2)} stars on average.`);
+    draw('cScatter', {
+      type: 'bubble',
+      data: { datasets: [
+        { label: 'Reviews', data: P.map(p => ({ x: p.x, y: p.y, r: 2.5 + 9 * Math.sqrt(p.c / maxC), c: p.c })),
+          backgroundColor: `color-mix(in srgb, ${T.s[0]} 45%, transparent)`, borderColor: T.surface, borderWidth: 1 },
+        { type: 'line', label: 'Trend', data: [{ x: x0, y: cor.intercept + cor.slope * x0 }, { x: x1, y: cor.intercept + cor.slope * x1 }],
+          borderColor: T.ink, backgroundColor: T.ink, borderWidth: 2, pointRadius: 0, pointHitRadius: 0 },
+      ] },
+      options: {
+        plugins: { legend: { position: 'top', align: 'start' },
+          tooltip: { filter: c => c.datasetIndex === 0, callbacks: { label: c => `${c.raw.x} days, ${c.raw.y} stars · ${num(c.raw.c)} reviews` } } },
+        scales: { x: axis({ type: 'linear', title: { display: true, text: 'Delivery time (days)', color: T.tick } }),
+          y: axis({ min: 0.5, max: 5.5, afterBuildTicks: ax => { ax.ticks = [1, 2, 3, 4, 5].map(value => ({ value })); }, ticks: { color: T.tick, padding: 8 }, title: { display: true, text: 'Rating', color: T.tick } }) },
+      },
+    });
+    table('cScatter', ['Delivery days', 'Rating', 'Reviews'], [...P].sort((a, b) => a.x - b.x || a.y - b.y).map(p => [p.x, p.y, num(p.c)]), [0, 1, 2]);
+
+    const RC = d.returns_by_category;
+    sub('cRet', RC.length > 1 ? `${RC[0].k} has the highest return rate at ${pct(RC[0].rate)}, against ${pct(d.kpis.return_rate)} overall.` : '');
+    hbar('cRet', RC.map(r => r.k), RC.map(r => r.rate), RC.map((_, i) => i === 0 ? T.s[0] : T.muted), v => pct(v, v < .1 && v > 0 ? 1 : 0), v => pct(v) + ' returned', 52);
+    endLabel.cRet = v => pct(v);
+    table('cRet', ['Category', 'Return rate'], RC.map(r => [r.k, pct(r.rate)]), [1]);
+
+    const RS = d.rating_by_status, dl = RS[0], rt = RS[1];
+    sub('reviews', dl.rating != null && rt.rating != null ? `Returned orders average ${rt.rating.toFixed(1)} stars, against ${dl.rating.toFixed(1)} for delivered.` : '');
+    $('reviews').innerHTML = `<table class="mini"><thead><tr><th>Order status</th><th class="r">Reviews</th><th class="r">Average rating</th><th class="r">Rated 1–2 stars</th></tr></thead><tbody>` +
+      RS.map(r => `<tr><td><span class="status ${r.s}">${r.s}</span></td><td class="r">${num(r.n)}</td>` +
+        `<td class="r">${r.rating == null ? '–' : r.rating.toFixed(2)}</td><td class="r">${r.low == null ? '–' : pct(r.low)}</td></tr>`).join('') +
+      '</tbody></table>';
+  }
+
+  // ------------------------------------------------------------------ loading
+  function params() {
+    const p = new URLSearchParams();
+    for (const [k, el] of Object.entries(sel)) if (el.value) p.set(k, el.value);
+    return p;
+  }
+  function syncControls() {
+    let any = false;
+    for (const el of Object.values(sel)) { el.classList.toggle('is-set', !!el.value); any = any || !!el.value; }
+    $('clear').disabled = !any;
+    const q = params().toString();
+    history.replaceState(null, '', location.pathname + (q ? '?' + q : ''));
+  }
+  function render(d) {
+    $('scopeText').textContent = d.n === d.total_orders ? `${num(d.n)} orders` : `${num(d.n)} of ${num(d.total_orders)} orders`;
+    const empty = d.n === 0;
+    $('empty').hidden = !empty; $('cards').hidden = empty; $('kpis').hidden = empty;
+    if (empty) return;
+    (CFG.view === 'overview' ? overview : customers)(d);
+  }
+  async function load(flash = false) {
+    if (ctrl) ctrl.abort();
+    ctrl = new AbortController();
+    const mine = ctrl;
+    $('live').classList.add('loading');
+    try {
+      const r = await fetch(CFG.api + '?' + params(), { signal: mine.signal, cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      last = await r.json();
+      prevKpi.flash = flash;
+      render(last);
+    } catch (e) {
+      if (e.name !== 'AbortError') { $('scopeText').textContent = 'Could not load data. Retrying when the server responds.'; console.error(e); }
+    } finally {
+      if (ctrl === mine) $('live').classList.remove('loading');
+    }
+  }
+
+  // ------------------------------------------------------------------ wiring
+  const url = new URLSearchParams(location.search);
+  for (const [k, el] of Object.entries(sel)) {
+    const v = url.get(k);
+    if (v && [...el.options].some(o => o.value === v)) el.value = v;
+    el.addEventListener('change', () => { syncControls(); load(); });
+  }
+  const clear = () => { Object.values(sel).forEach(el => { el.value = ''; }); syncControls(); load(); };
+  $('clear').addEventListener('click', clear);
+  $('clear2').addEventListener('click', clear);
+
+  document.querySelectorAll('.view-toggle').forEach(g => g.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    g.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    g.closest('.card').classList.toggle('show-table', b.dataset.view === 'table');
+  }));
+
+  document.addEventListener('ca:data-changed', () => load(true));
+  document.addEventListener('ca:theme', () => {
+    readTheme();
+    Object.values(charts).forEach(c => c.destroy());
+    for (const k in charts) delete charts[k];
+    if (last) render(last);
+  });
+
+  readTheme();
+  syncControls();
   load();
-  poll();
 })();

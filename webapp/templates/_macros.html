@@ -1,4 +1,5 @@
-{# Shared helpers for list pages and forms #}
+{# Shared helpers for record pages and forms #}
+{% from "_icons.html" import icon %}
 
 {# qs(args, key=value, ...) — current query string with overrides; extra keyword args arrive as `kwargs` #}
 {% macro qs(args) -%}
@@ -10,25 +11,23 @@
 
 {% macro sort_th(endpoint, args, col, label, sort, dir, cls='') -%}
   {%- set nd = 'asc' if (sort == col and dir == 'desc') else 'desc' -%}
-  <th class="{{ cls }}"><a href="{{ url_for(endpoint) }}?{{ qs(args, sort=col, dir=nd) }}">{{ label }}
-    {%- if sort == col %} <span class="arrow">{{ '▲' if dir == 'asc' else '▼' }}</span>{% endif %}</a></th>
+  <th class="{{ cls }}"{% if sort == col %} aria-sort="{{ 'ascending' if dir == 'asc' else 'descending' }}"{% endif %}><a href="{{ url_for(endpoint) }}?{{ qs(args, sort=col, dir=nd) }}">{{ label }}
+    {%- if sort == col %}<span class="sort">{{ '▲' if dir == 'asc' else '▼' }}</span>{% endif %}</a></th>
 {%- endmacro %}
 
 {% macro pager(endpoint, args, page, pages, total, offset, page_size, noun) -%}
 <div class="pager">
-  <span>{% if total %}Showing {{ '{:,}'.format(offset + 1) }}–{{ '{:,}'.format([offset + page_size, total]|min) }} of {{ '{:,}'.format(total) }} {{ noun }}{% else %}No {{ noun }} match{% endif %}</span>
-  {% if pages > 1 %}<div class="pages">
-    <a class="btn sm" {% if page > 1 %}href="{{ url_for(endpoint) }}?{{ qs(args, page=1) }}"{% else %}aria-disabled="true" style="opacity:.4;pointer-events:none"{% endif %}>« First</a>
-    <a class="btn sm" {% if page > 1 %}href="{{ url_for(endpoint) }}?{{ qs(args, page=page-1) }}"{% else %}aria-disabled="true" style="opacity:.4;pointer-events:none"{% endif %}>‹ Prev</a>
-    <span class="btn sm" style="cursor:default">Page {{ page }} / {{ pages }}</span>
-    <a class="btn sm" {% if page < pages %}href="{{ url_for(endpoint) }}?{{ qs(args, page=page+1) }}"{% else %}aria-disabled="true" style="opacity:.4;pointer-events:none"{% endif %}>Next ›</a>
-    <a class="btn sm" {% if page < pages %}href="{{ url_for(endpoint) }}?{{ qs(args, page=pages) }}"{% else %}aria-disabled="true" style="opacity:.4;pointer-events:none"{% endif %}>Last »</a>
+  <span>{% if total %}{{ '{:,}'.format(offset + 1) }}–{{ '{:,}'.format([offset + page_size, total]|min) }} of {{ '{:,}'.format(total) }} {{ noun }}{% endif %}</span>
+  {% if pages > 1 %}<div class="controls">
+    <span>Page {{ page }} of {{ '{:,}'.format(pages) }}</span>
+    <a class="btn btn-sm icon-btn" aria-label="Previous page" {% if page > 1 %}href="{{ url_for(endpoint) }}?{{ qs(args, page=page-1) }}"{% else %}aria-disabled="true"{% endif %}>{{ icon('left') }}</a>
+    <a class="btn btn-sm icon-btn" aria-label="Next page" {% if page < pages %}href="{{ url_for(endpoint) }}?{{ qs(args, page=page+1) }}"{% else %}aria-disabled="true"{% endif %}>{{ icon('right') }}</a>
   </div>{% endif %}
 </div>
 {%- endmacro %}
 
-{% macro select_field(name, label, options, value, errors, blank=None, attrs='') -%}
-<div class="field {{ 'invalid' if errors.get(name) }}"><label for="{{ name }}">{{ label }}</label>
+{% macro select_field(name, label, options, value, errors, blank=None, attrs='', cls='') -%}
+<div class="field {{ cls }} {{ 'invalid' if errors.get(name) }}"><label for="{{ name }}">{{ label }}</label>
   <select id="{{ name }}" name="{{ name }}" {{ attrs|safe }}>
     {% if blank is not none %}<option value="">{{ blank }}</option>{% endif %}
     {% for o in options %}<option value="{{ o }}" {{ 'selected' if (value|string) == (o|string) }}>{{ o }}</option>{% endfor %}
@@ -37,9 +36,14 @@
 </div>
 {%- endmacro %}
 
-{% macro input_field(name, label, value, errors, type='text', hint=None, attrs='') -%}
-<div class="field {{ 'invalid' if errors.get(name) }}"><label for="{{ name }}">{{ label }}</label>
+{% macro input_field(name, label, value, errors, type='text', hint=None, attrs='', cls='') -%}
+<div class="field {{ cls }} {{ 'invalid' if errors.get(name) }}"><label for="{{ name }}">{{ label }}</label>
   <input type="{{ type }}" id="{{ name }}" name="{{ name }}" value="{{ value if value is not none else '' }}" {{ attrs|safe }}>
   {% if errors.get(name) %}<span class="err">{{ errors[name] }}</span>{% elif hint %}<span class="hint">{{ hint }}</span>{% endif %}
 </div>
+{%- endmacro %}
+
+{% macro form_errors(errors) -%}
+{% if errors.get('_') %}<div class="notice error" role="alert">{{ icon('alert') }}<span>{{ errors['_'] }}</span></div>
+{% elif errors %}<div class="notice error" role="alert">{{ icon('alert') }}<span>{{ errors|length }} field{{ 's' if errors|length > 1 }} need{{ '' if errors|length > 1 else 's' }} attention.</span></div>{% endif %}
 {%- endmacro %}

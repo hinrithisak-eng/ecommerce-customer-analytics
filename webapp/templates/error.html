@@ -1,9 +1,10 @@
 {% extends "base.html" %}
-{% block title %}{{ code }} · E-commerce Customer Analytics{% endblock %}
+{% block title %}{{ code }} · Customer Analytics{% endblock %}
 {% block content %}
-<div class="card" style="max-width:640px;margin:40px auto;text-align:center;padding:40px">
-  <div style="font-family:Cambria,Georgia,serif;font-size:56px;font-weight:700;color:var(--amber)">{{ code }}</div>
-  <p style="font-size:17px">{{ message }}</p>
-  <p><a class="btn" href="{{ url_for('dashboard') }}">Back to the dashboard</a></p>
+<div class="empty-state">
+  <div class="code">Error {{ code }}</div>
+  <h1>{{ 'Page not found' if code == 404 else 'Something went wrong' }}</h1>
+  <p>{{ message }}</p>
+  <a class="btn" href="{{ url_for('dashboard') }}">Go to overview</a>
 </div>
 {% endblock %}
