@@ -17,3 +17,9 @@ Thumbs.db
 
 # Environment
 .env
+
+# Web app database (rebuilt from data/processed/ on first run)
+webapp/instance/
+
+# Test caches
+.pytest_cache/

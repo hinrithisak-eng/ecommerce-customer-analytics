@@ -2,7 +2,7 @@
 
 > An end-to-end data analytics project using **Python & Pandas** to clean, explore, analyse and visualise 18 months of e-commerce order data, and to turn the results into evidence-based business recommendations.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue) ![Pandas](https://img.shields.io/badge/Pandas-2.x-150458) ![License](https://img.shields.io/badge/License-MIT-green) ![CI](https://github.com/<your-username>/ecommerce-customer-analytics/actions/workflows/ci.yml/badge.svg)
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue) ![Pandas](https://img.shields.io/badge/Pandas-2.x-150458) ![License](https://img.shields.io/badge/License-MIT-green) ![CI](https://github.com/hinrithisak-eng/ecommerce-customer-analytics/actions/workflows/ci.yml/badge.svg)
 
 ---
 
@@ -45,8 +45,15 @@ ecommerce-customer-analytics/
 │   ├── generate_dataset.py                   # reproducible synthetic data generator
 │   ├── data_cleaning.py                      # reusable cleaning pipeline + customer table
 │   └── run_pipeline.py                       # one-command: generate -> clean -> execute notebook
+├── webapp/                                   # Flask + SQLite web app (live dashboard + order management)
+│   ├── app.py                                # routes, validation, CSRF — run: python webapp/app.py
+│   ├── database.py                           # schema (tables, constraints, view, triggers) + CSV loader
+│   ├── analytics.py                          # every dashboard number, computed with SQL
+│   ├── templates/                            # Jinja pages: dashboard, orders, customers, forms
+│   └── static/                               # CSS, JS, vendored Chart.js (works offline)
 ├── tests/
-│   └── test_data_cleaning.py                 # pytest suite for the cleaning pipeline (14 tests)
+│   ├── test_data_cleaning.py                 # pytest suite for the cleaning pipeline (14 tests)
+│   └── test_webapp.py                        # database, API, CRUD, validation & security tests (25 tests)
 ├── .github/workflows/ci.yml                  # GitHub Actions: tests + pipeline on every push
 ├── outputs/
 │   └── figures/                              # 9 charts exported from the notebook
@@ -73,7 +80,7 @@ Full field descriptions: [`docs/data_dictionary.md`](docs/data_dictionary.md).
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/<your-username>/ecommerce-customer-analytics.git
+git clone https://github.com/hinrithisak-eng/ecommerce-customer-analytics.git
 cd ecommerce-customer-analytics
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -88,13 +95,55 @@ jupyter notebook notebooks/ecommerce_customer_analytics.ipynb
 # Or reproduce everything with one command (generate -> clean -> execute notebook)
 python src/run_pipeline.py
 
-# Run the unit tests
+# Run the web app (Flask + SQLite) — see section 6
+python webapp/app.py
+
+# Run the unit tests (39 tests: pipeline + web app)
 pytest -q
 ```
 
 The notebook runs top-to-bottom in ~15 seconds (`Kernel → Restart & Run All`) and writes the charts to `outputs/figures/`.
 
-## 6. Methodology (mapped to the notebook sections)
+## 6. Web app — live dashboard on a SQLite database
+
+The analysis also runs as a full web application: the dashboard reads **live from a SQLite database**, and orders and customers can be added, edited and deleted in the browser — every change shows up on the dashboard within seconds.
+
+```bash
+pip install -r requirements.txt
+python webapp/app.py              # first run builds webapp/instance/ecommerce.db from the cleaned CSV
+                                  # then open http://127.0.0.1:5000
+python webapp/app.py --reset      # rebuild the database from the CSV (undoes all demo edits)
+```
+
+```mermaid
+flowchart LR
+    A[raw CSV<br/>2,045 rows] -->|src/data_cleaning.py| B[clean CSV<br/>1,972 rows]
+    B -->|webapp/database.py| C[(SQLite<br/>customers · orders<br/>v_orders view)]
+    C -->|SQL in analytics.py| D[/api/analytics/]
+    D --> E[Dashboard<br/>Chart.js]
+    F[Orders & Customers pages] -->|validated INSERT / UPDATE / DELETE| C
+```
+
+| Page | What it does |
+|------|--------------|
+| **Dashboard** `/` | Overview and Customers & service tabs; Country / Segment / Category filters; every KPI, chart and interpretation sentence computed by SQL from the live database. Polls a change counter and refreshes itself when the data changes. |
+| **Orders** `/orders` | Search, filter, sort and page through orders; add, edit, delete. The form shows the customer's profile as you type their ID and a live order total. |
+| **Customers** `/customers` | Same for customers, with order count and net spend per customer. A customer who still has orders can't be deleted. |
+| **API** | `/api/analytics?country=&segment=&category=` (all dashboard numbers as JSON), `/api/version`, `/api/customers/<id>` |
+
+**Database design** (`webapp/database.py`)
+
+| Object | Purpose |
+|--------|---------|
+| `customers` | One row per customer (normalised out of the order rows). 69 customers had conflicting ages/cities across orders because of per-order imputation; the loader keeps each customer's most frequent value. |
+| `orders` | One row per order, `FOREIGN KEY → customers` with `ON DELETE RESTRICT`. |
+| `CHECK` constraints | The cleaning rules from notebook §8 enforced by the database itself — quantity 1–50, price > 0, discount 0–100 %, rating 1–5, delivery 0–30 days, valid categories, and "a cancelled order has no delivery time or review". |
+| `v_orders` view | `total_amount`, `net_revenue`, `age_group`, `order_month`, `customer_tenure_days` computed on the fly, so derived values can never go stale after an edit. |
+| `meta` + triggers | A change counter bumped on every insert/update/delete; the dashboard polls it to auto-refresh. |
+
+Validation happens twice — in Python with friendly field-level messages, and again by the database constraints — and every form is CSRF-protected. Loading the 1,972 cleaned orders reproduces the notebook exactly ($227,155 net revenue, $136.47 average order, r = −0.38), which `tests/test_webapp.py` checks.
+
+## 7. Methodology (mapped to the notebook sections)
 
 | Step | Notebook section | What is done |
 |------|------------------|--------------|
@@ -108,7 +157,7 @@ The notebook runs top-to-bottom in ~15 seconds (`Kernel → Restart & Run All`) 
 | Visualisation | §12 | 9 charts (bar, line, histogram, pie, scatter, box, grouped bar, heatmap, stacked bar), each with interpretation |
 | Findings | §13 | 7 findings, 7 recommendations, limitations |
 
-## 7. Key findings
+## 8. Key findings
 
 1. **Revenue is concentrated in Electronics** — 54 % of net revenue from 24 % of orders; Electronics + Home & Kitchen + Fashion ≈ 80 %.
 2. **VIP customers drive value through frequency** — 23 % of customers, 40 % of revenue, 4.8 orders each vs 1.6 for New; order value per order is *not* significantly different (p = 0.60).
@@ -118,7 +167,7 @@ The notebook runs top-to-bottom in ~15 seconds (`Kernel → Restart & Run All`) 
 6. **Good retention, but many dormant customers** — 67 % repeat rate, top 20 % of customers = 57 % of revenue, yet 45 % inactive > 180 days.
 7. **Referral brings the least valuable customers** ($237 per customer vs $325 for Email).
 
-## 8. Recommendations
+## 9. Recommendations
 
 1. Set a ≤ 5-day delivery SLA in the top three markets and show delivery estimates at checkout.
 2. Launch a second-purchase voucher programme for New customers and a win-back campaign for the 45 % dormant customers.
@@ -128,16 +177,16 @@ The notebook runs top-to-bottom in ~15 seconds (`Kernel → Restart & Run All`) 
 6. Rebalance acquisition spend from Referral toward Email / Social; pay referral rewards only after the second order.
 7. Cap VIP discounts at ~10 % and replace with non-price perks such as free express shipping.
 
-## 9. Sample visualisations
+## 10. Sample visualisations
 
 | | |
 |---|---|
 | ![](outputs/figures/01_revenue_by_category.png) | ![](outputs/figures/02_monthly_trend.png) |
 | ![](outputs/figures/05_delivery_vs_rating_scatter.png) | ![](outputs/figures/06_order_value_by_segment_boxplot.png) |
 
-## 10. Live demo script (≈ 10 minutes)
+## 11. Live demo script (≈ 10 minutes)
 
-Open `docs/dashboard.html` in any browser — it works offline with no server or Python running. Four tabs (Overview · Customers & service · Data quality · Findings & demo), Country / Segment / Category filters that recompute every chart, KPI and interpretation sentence live, and a light/dark theme that follows your OS setting. Keyboard: `1`–`4` switch tabs, `D` toggles dark mode, `R` resets filters. The **Findings & demo** tab holds the minute-by-minute script and likely Q&A.
+Close the demo with the **live web app** (`python webapp/app.py`, section 6): add an order on stage and watch the dashboard update. `docs/dashboard.html` is the no-server fallback — it works offline with no Python running. Four tabs (Overview · Customers & service · Data quality · Findings & demo), Country / Segment / Category filters that recompute every chart, KPI and interpretation sentence live, and a light/dark theme that follows your OS setting. Keyboard: `1`–`4` switch tabs, `D` toggles dark mode, `R` resets filters. The **Findings & demo** tab holds the minute-by-minute script and likely Q&A.
 
 1. Show the repo structure and `README` (1 min).
 2. Run `python src/generate_dataset.py` → show `df.describe()` revealing the bad values (1 min).

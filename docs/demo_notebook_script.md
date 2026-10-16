@@ -2,7 +2,7 @@
 
 A section-by-section script for presenting `notebooks/ecommerce_customer_analytics.ipynb`.
 Each block has **SAY** (what to say aloud), **DO** (what to click/run), and **POINT AT** (the
-number or output to draw attention to). Target length ~10 minutes; the ⏱ tags add up to that.
+number or output to draw attention to). Target length ~11 minutes; the ⏱ tags add up to that — trim §3/§9 if you're short on time.
 
 > How to run a cell live: click it and press **Shift + Enter**. The cell below it becomes selected,
 > so you can keep pressing Shift+Enter to walk down the notebook.
@@ -16,9 +16,12 @@ number or output to draw attention to). Target length ~10 minutes; the ⏱ tags 
 2. Click **Kernel → Restart & Run All** and wait ~15 seconds until every cell shows output.
    This means that even if the live kernel misbehaves, all results and charts are already on screen.
 3. Zoom the browser to **125–150 %** (Ctrl + `+`) so the back row can read the code.
-4. Have these open in separate tabs, ready to switch to: GitHub repo page, `docs/dashboard.html`,
-   and `docs/notebook_export.html` (your no-kernel fallback).
-5. Collapse the Jupyter file browser so the notebook uses the full width.
+4. In a **second terminal**, start the web app: `python webapp/app.py --reset` and leave it running.
+   Open two browser windows on it — Dashboard (`http://127.0.0.1:5000`) and Add order
+   (`http://127.0.0.1:5000/orders/new`).
+5. Also have ready in tabs: the GitHub repo page, `docs/dashboard.html` (offline fallback) and
+   `docs/notebook_export.html` (no-kernel fallback).
+6. Collapse the Jupyter file browser so the notebook uses the full width.
 
 **One-line framing to open with:**
 > "This notebook takes a raw e-commerce order log, cleans it, and answers seven business questions
@@ -225,19 +228,47 @@ and mention the rest exist.
 
 ---
 
-## Close with the dashboard ⏱ 1.5 min
+## Close with the live web app ⏱ 2.5 min  ← the memorable finish
 
-**DO:** Switch to the `docs/dashboard.html` tab. Change the **Country** filter to **Cambodia**.
+**Before the demo:** in a terminal run `python webapp/app.py --reset` (fresh data), leave it running, and
+open **two browser windows side by side**: left = `http://127.0.0.1:5000` (Dashboard),
+right = `http://127.0.0.1:5000/orders/new` (Add order).
 
-**SAY:**
-> "And finally — the same analysis as an interactive tool for a non-technical audience. Watch the KPIs
-> and every chart recompute live as I filter to Cambodia. The notebook is the analysis; this is the
-> analysis made explorable."
+**SAY (left window, Dashboard):**
+> "Everything you just saw in the notebook now runs as a web app on a real database. The cleaned CSV is
+> loaded into SQLite — customers and orders as two linked tables — and every number here is a SQL query
+> against it. 1,972 orders, $227,155 of net revenue — the same figures as the notebook."
+
+**DO:** Change **Country → Cambodia**, then **Reset**.
+> "Filters run new SQL queries — the KPIs and charts recompute live."
+
+**DO (right window):** type `C1122` in Customer ID — the green card shows who it is. Fill in:
+Electronics · quantity 3 · price 299.99 · discount 5 · E-Wallet · delivery 2 days · rating 5.
+Point at the **Order total $854.97** updating as you type. Click **Add order**.
+
+**SAY (look at the left window — within ~4 seconds it refreshes by itself):**
+> "And the dashboard picked it up on its own — orders went from 1,972 to 1,973 and revenue up by $855.
+> The database bumps a change counter on every write, and the dashboard polls it."
+
+**DO (right window):** click **Add order** again, type customer `C9999`, quantity `0`, status **Cancelled**,
+and submit.
+> "It validates against the same business rules as the cleaning pipeline in §8 — unknown customer,
+> impossible quantity, a cancelled order can't have a delivery time. And the database enforces the
+> same rules a second time with CHECK constraints, so bad data can't get in even if the form were bypassed."
+
+**Optional (if time):** on **Customers**, try to delete `C1122` →
+> "Blocked — this customer has orders, and the foreign key protects that link."
 
 **Closing line:**
 > "So: a reproducible pipeline that cleans messy data, answers the business questions with Pandas and
-> statistics, and turns the results into both a written report and a live dashboard. Happy to take
-> questions."
+> statistics, and serves the results from a database as a live web app — with 39 automated tests and CI
+> checking all of it on every push. Happy to take questions."
+
+**After the demo:** click **Reset demo data** in the page footer (or rerun `python webapp/app.py --reset`)
+to restore the original 1,972 orders.
+
+> **Fallback:** if the server won't start, open `docs/dashboard.html` — the same charts with filters,
+> no Python needed. Say: *"here's the offline version of the same dashboard."*
 
 ---
 
@@ -259,3 +290,11 @@ and mention the rest exist.
   the return-rate ranking as indicative and say so in the limitations.
 - **Why a 180-day churn cut-off?** It's measured from a snapshot at the end of the data window; a
   per-customer definition (recency vs that customer's own typical gap) is a stated next step.
+- **Why SQLite rather than MySQL/PostgreSQL?** It's a real SQL database in a single file — no server to
+  install, so the project runs anywhere with `python webapp/app.py`. The SQL (tables, foreign keys, CHECK
+  constraints, a view, triggers) carries over to PostgreSQL almost unchanged.
+- **Why compute totals in a view instead of storing them?** If `total_amount` were stored, editing a price
+  could leave it stale. The `v_orders` view derives it on every query, so it's always consistent.
+- **Is it secure?** Every form is CSRF-protected, all SQL is parameterised (no string-built user input),
+  redirects only go to same-site paths, and input is validated twice — Python, then database constraints.
+
