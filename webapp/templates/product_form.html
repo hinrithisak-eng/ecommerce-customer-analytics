@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "_macros.html" import select_field, input_field, form_errors %}
+{% set editing = product is not none %}
+{% block title %}{{ product.product_name if editing else 'New product' }} · Customer Analytics{% endblock %}
+{% block content %}
+{% macro v(name, default='') -%}{{ form.get(name) if form.get(name) is not none else (product[name] if editing else default) }}{%- endmacro %}
+<header class="page-header">
+  <div>
+    <div class="crumbs"><a href="{{ url_for('products') }}">Products</a><span>/</span><span>{{ product.product_id if editing else 'New' }}</span></div>
+    <h1>{{ product.product_name if editing else 'New product' }}</h1>
+    {% if editing %}<div class="page-meta">{{ product.product_id }} · on {{ order_count }} order{{ 's' if order_count != 1 }}</div>{% endif %}
+  </div>
+</header>
+
+<form method="post" novalidate class="form-layout single">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div>
+    {{ form_errors(errors) }}
+    <section class="form-card">
+      <header><h2>Product</h2></header>
+      <div class="fields">
+        {{ input_field('product_name', 'Product name', v('product_name'), errors, attrs='maxlength="80" placeholder="Python Programming for Beginners"', cls='full') }}
+        {{ select_field('category', 'Category', C.CATEGORIES, v('category'), errors, blank='Select category') }}
+        {{ input_field('subcategory', 'Subcategory', v('subcategory'), errors, hint='Pick an existing one or type a new one', attrs='list="subList" maxlength="40" placeholder="Programming"') }}
+        <datalist id="subList"></datalist>
+      </div>
+    </section>
+    <section class="form-card">
+      <header><h2>Price and stock</h2><p>{{ 'A new price applies to new orders only; past orders keep the price they were sold at.' if editing else 'Orders for this product are charged this price automatically.' }}</p></header>
+      <div class="fields three">
+        {{ input_field('unit_price', 'List price (USD)', v('unit_price'), errors, 'number', attrs='min="0.01" max="5000" step="0.01" placeholder="0.00"') }}
+        {{ input_field('stock_on_hand', 'Stock on hand', v('stock_on_hand', 0), errors, 'number', hint='Units available to sell', attrs='min="0" step="1"') }}
+        {{ input_field('reorder_level', 'Reorder level', v('reorder_level', 10), errors, 'number', hint='Flag as low stock at or below this', attrs='min="0" step="1"') }}
+      </div>
+    </section>
+    <div class="form-foot">
+      <button class="btn btn-primary" type="submit">{{ 'Save changes' if editing else 'Create product' }}</button>
+      <a class="btn" href="{{ url_for('products') }}">Cancel</a>
+    </div>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const subs = {{ subcats|tojson }}, cat = document.getElementById('category'), list = document.getElementById('subList');
+  const fill = () => { list.innerHTML = (subs[cat.value] || []).map(s => `<option value="${s.replace(/"/g, '&quot;')}">`).join(''); };
+  cat.addEventListener('change', fill); fill();
+})();
+</script>
+{% endblock %}

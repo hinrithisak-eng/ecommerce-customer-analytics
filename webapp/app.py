@@ -9,6 +9,7 @@ Pages
   /                      live analytics dashboard (charts read /api/analytics)
   /orders                search, filter, sort and page through orders; add / edit / delete
   /customers             same for customers
+  /products              product catalogue: price and stock on hand per product; add / edit / restock
 API
   /api/analytics         every dashboard number, computed with SQL (?country=&segment=&category=)
   /api/version           data-change counter, polled by the dashboard to auto-refresh
@@ -33,7 +34,8 @@ except ImportError:  # run as a script: python webapp/app.py
     import database as dbm
 
 PAGE_SIZE = 25
-ORDER_SORTS = {"order_date", "order_id", "customer_id", "product_category", "total_amount", "order_status", "country"}
+ORDER_SORTS = {"order_date", "order_id", "customer_id", "product_name", "product_category", "total_amount", "order_status", "country"}
+PRODUCT_SORTS = {"product_name", "category", "subcategory", "unit_price", "stock_on_hand", "units_sold", "revenue"}
 CUSTOMER_SORTS = {"customer_id", "country", "customer_segment", "orders", "spent", "last_order", "age"}
 
 
@@ -72,15 +74,20 @@ def _date(form, key, errors, label):
         return raw
 
 
-def validate_order(form, conn) -> tuple[dict, dict]:
-    """Same business rules as the cleaning pipeline (notebook §8), applied at entry time."""
+def validate_order(form, conn, existing=None) -> tuple[dict, dict]:
+    """Same business rules as the cleaning pipeline (notebook §8), applied at entry time.
+
+    The price is never typed in: it comes from the product catalogue. The quantity of a
+    delivered order may not exceed the stock available for that product.
+    ``existing`` is the order being edited (its own units are available to it again).
+    """
     e: dict = {}
     d = {
         "order_date": _date(form, "order_date", e, "Order date"),
         "customer_id": (form.get("customer_id") or "").strip().upper(),
-        "product_category": _choice(form, "product_category", dbm.CATEGORIES, e, "Category"),
+        "product_id": (form.get("product_id") or "").strip().upper(),
         "quantity": _num(form, "quantity", int, e, "Quantity", 1, 50),
-        "unit_price": _num(form, "unit_price", float, e, "Unit price", 0.01, 5000),
+        "unit_price": None,
         "discount_pct": _num(form, "discount_pct", float, e, "Discount", 0, 100),
         "shipping_cost": _num(form, "shipping_cost", float, e, "Shipping cost", 0, 100),
         "payment_method": _choice(form, "payment_method", dbm.PAYMENTS, e, "Payment method"),
@@ -101,7 +108,40 @@ def validate_order(form, conn) -> tuple[dict, dict]:
             e["order_status"] = "A cancelled order can't have a delivery time or a review."
     elif d["order_status"] in dbm.STATUSES and d["delivery_days"] is None and "delivery_days" not in e:
         e["delivery_days"] = "Delivery days is required unless the order was cancelled."
-    if d["quantity"] is not None and d["unit_price"] is not None and "unit_price" not in e:
+    prod = conn.execute("SELECT * FROM products WHERE product_id = ?", (d["product_id"],)).fetchone()
+    if prod is None:
+        e["product_id"] = "Choose a product from the catalogue."
+    else:
+        same = existing is not None and existing["product_id"] == prod["product_id"]
+        # an edited order keeps the price it was sold at; a new or re-assigned one uses today's list price
+        d["unit_price"] = existing["unit_price"] if same else prod["unit_price"]
+        available = prod["stock_on_hand"] + (existing["quantity"] if same and existing["order_status"] == "Delivered" else 0)
+        if d["order_status"] == "Delivered" and d["quantity"] is not None and d["quantity"] > available:
+            e["quantity"] = (f"Only {available} unit{'s' if available != 1 else ''} of {prod['product_name']} in stock."
+                             if available else f"{prod['product_name']} is out of stock.")
+    return d, e
+
+
+def validate_product(form, conn, product_id: str | None = None) -> tuple[dict, dict]:
+    e: dict = {}
+    d = {
+        "product_name": " ".join((form.get("product_name") or "").split()),
+        "category": _choice(form, "category", dbm.CATEGORIES, e, "Category"),
+        "subcategory": " ".join((form.get("subcategory") or "").split()),
+        "unit_price": _num(form, "unit_price", float, e, "Price", 0.01, 5000),
+        "stock_on_hand": _num(form, "stock_on_hand", int, e, "Stock on hand", 0, 100000),
+        "reorder_level": _num(form, "reorder_level", int, e, "Reorder level", 0, 10000),
+    }
+    if not d["product_name"]:
+        e["product_name"] = "Product name is required."
+    elif len(d["product_name"]) > 80:
+        e["product_name"] = "Product name must be 80 characters or fewer."
+    elif conn.execute("SELECT 1 FROM products WHERE lower(product_name) = lower(?) AND product_id IS NOT ?",
+                      (d["product_name"], product_id)).fetchone():
+        e["product_name"] = "Another product already has this name."
+    if not d["subcategory"]:
+        e["subcategory"] = "Subcategory is required."
+    if d["unit_price"] is not None:
         d["unit_price"] = round(d["unit_price"], 2)
     return d, e
 
@@ -128,6 +168,14 @@ def validate_customer(form, conn, customer_id: str | None = None) -> tuple[dict,
         if first and d["signup_date"] > first:
             e["signup_date"] = f"Sign-up date can't be after this customer's first order ({first})."
     return d, e
+
+
+def _db_error(exc: Exception) -> str:
+    """Turn a SQLite constraint failure into a sentence for the form."""
+    msg = str(exc)
+    if "stock_on_hand" in msg:
+        return "Not enough stock for this quantity — another order may have just taken the last units."
+    return f"The database rejected this order: {msg}"
 
 
 def safe_next(target: str | None, fallback: str) -> str:
@@ -179,6 +227,8 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
         nav = {
             "orders": conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0],
             "customers": conn.execute("SELECT COUNT(*) FROM customers").fetchone()[0],
+            "products": conn.execute("SELECT COUNT(*) FROM products").fetchone()[0],
+            "low_stock": conn.execute("SELECT COUNT(*) FROM products WHERE stock_on_hand <= reorder_level").fetchone()[0],
             "version": conn.execute("SELECT value FROM meta WHERE key='data_version'").fetchone()[0],
             "loaded_at": datetime.now().strftime("%H:%M"),
             "last_order": (lambda d: date.fromisoformat(d).strftime("%d %b %Y").lstrip("0") if d else "–")(
@@ -195,7 +245,7 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
         return {
             "countries": [r[0] for r in conn.execute("SELECT DISTINCT country FROM customers ORDER BY 1")],
             "segments": [s for s in dbm.SEGMENTS],
-            "categories": [r[0] for r in conn.execute("SELECT DISTINCT product_category FROM orders ORDER BY 1")],
+            "categories": [r[0] for r in conn.execute("SELECT DISTINCT category FROM products ORDER BY 1")],
         }
 
     def page_args(total: int):
@@ -248,8 +298,8 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
         a = request.args
         where, params = ["1=1"], []
         if q := a.get("q", "").strip():
-            where.append("(order_id LIKE ? OR customer_id LIKE ? OR city LIKE ?)")
-            params += [f"%{q}%"] * 3
+            where.append("(order_id LIKE ? OR customer_id LIKE ? OR city LIKE ? OR product_name LIKE ?)")
+            params += [f"%{q}%"] * 4
         for col, key in (("order_status", "status"), ("country", "country"), ("product_category", "category")):
             if v := a.get(key, ""):
                 where.append(f"{col} = ?")
@@ -260,7 +310,7 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
         total = conn.execute(f"SELECT COUNT(*) FROM v_orders WHERE {W}", params).fetchone()[0]
         page, pages, offset = page_args(total)
         rows = conn.execute(
-            f"""SELECT order_id, order_date, customer_id, country, product_category, quantity, unit_price,
+            f"""SELECT order_id, order_date, customer_id, country, product_id, product_name, product_category, quantity, unit_price,
                        discount_pct, total_amount, order_status, review_rating, delivery_days
                 FROM v_orders WHERE {W} ORDER BY {sort} {direction}, order_id {direction}
                 LIMIT ? OFFSET ?""", [*params, PAGE_SIZE, offset]).fetchall()
@@ -271,8 +321,11 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
     def _order_form(order=None, errors=None, form=None):
         conn = db()
         latest = conn.execute("SELECT MAX(order_date) FROM orders").fetchone()[0]
+        products = [dict(r) for r in conn.execute(
+            "SELECT product_id, product_name, category, subcategory, unit_price, stock_on_hand FROM products "
+            "ORDER BY category, subcategory, product_name")]
         return render_template("order_form.html", order=order, errors=errors or {}, form=form or {},
-                               latest_date=latest, active="orders",
+                               latest_date=latest, active="orders", products=products,
                                customer_ids=[r[0] for r in conn.execute("SELECT customer_id FROM customers ORDER BY 1")])
 
     @app.route("/orders/new", methods=["GET", "POST"])
@@ -288,7 +341,7 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
             with conn:
                 conn.execute(f"INSERT INTO orders ({', '.join(d)}) VALUES ({', '.join('?' * len(d))})", list(d.values()))
         except sqlite3.IntegrityError as exc:
-            return _order_form(errors={"_": f"The database rejected this order: {exc}"}, form=request.form), 422
+            return _order_form(errors={"_": _db_error(exc)}, form=request.form), 422
         total = conn.execute("SELECT total_amount FROM v_orders WHERE order_id = ?", (d["order_id"],)).fetchone()[0]
         flash(f"Order {d['order_id']} created for ${total:,.2f}.", "success")
         return redirect(url_for("orders", highlight=d["order_id"]))
@@ -301,7 +354,7 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
             abort(404)
         if request.method == "GET":
             return _order_form(order=order)
-        d, errors = validate_order(request.form, conn)
+        d, errors = validate_order(request.form, conn, existing=order)
         if errors:
             return _order_form(order=order, errors=errors, form=request.form), 422
         try:
@@ -309,7 +362,7 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
                 conn.execute(f"UPDATE orders SET {', '.join(f'{k} = ?' for k in d)} WHERE order_id = ?",
                              [*d.values(), order_id])
         except sqlite3.IntegrityError as exc:
-            return _order_form(order=order, errors={"_": f"The database rejected this change: {exc}"}, form=request.form), 422
+            return _order_form(order=order, errors={"_": _db_error(exc)}, form=request.form), 422
         flash(f"Order {order_id} updated.", "success")
         return redirect(url_for("orders", highlight=order_id))
 
@@ -320,6 +373,95 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
             n = conn.execute("DELETE FROM orders WHERE order_id = ?", (order_id,)).rowcount
         flash(f"Order {order_id} deleted." if n else f"Order {order_id} was not found.", "success" if n else "error")
         return redirect(safe_next(request.form.get("next"), url_for("orders")))
+
+    # ---- products ---------------------------------------------------------------------------
+    @app.get("/products")
+    def products():
+        conn = db()
+        a = request.args
+        where, params = ["1=1"], []
+        if q := a.get("q", "").strip():
+            where.append("(p.product_name LIKE ? OR p.product_id LIKE ? OR p.subcategory LIKE ?)")
+            params += [f"%{q}%"] * 3
+        if v := a.get("category", ""):
+            where.append("p.category = ?")
+            params.append(v)
+        if a.get("stock") == "low":
+            where.append("p.stock_on_hand <= p.reorder_level")
+        sort = a.get("sort") if a.get("sort") in PRODUCT_SORTS else "category"
+        direction = "DESC" if a.get("dir") == "desc" else "ASC"
+        W = " AND ".join(where)
+        rows = conn.execute(
+            f"""SELECT p.*, COALESCE(SUM(CASE WHEN o.order_status = 'Delivered' THEN o.quantity END), 0) AS units_sold,
+                       COUNT(o.order_id) AS orders, COALESCE(SUM(o.net_revenue), 0) AS revenue
+                FROM products p LEFT JOIN v_orders o ON o.product_id = p.product_id
+                WHERE {W} GROUP BY p.product_id
+                ORDER BY {sort} {direction}, p.category, p.subcategory, p.product_name""", params).fetchall()
+        stats = conn.execute("""SELECT COUNT(*) n, SUM(stock_on_hand <= reorder_level AND stock_on_hand > 0) low,
+                                       SUM(stock_on_hand = 0) out, SUM(stock_on_hand * unit_price) value,
+                                       COUNT(DISTINCT category) cats, COUNT(DISTINCT category || '/' || subcategory) subs
+                                FROM products""").fetchone()
+        return render_template("products.html", rows=rows, args=a, sort=sort, dir=direction.lower(),
+                               active="products", stats=stats, categories=dbm.CATEGORIES)
+
+    def _subcategories(conn):
+        out: dict = {}
+        for r in conn.execute("SELECT DISTINCT category, subcategory FROM products ORDER BY 1, 2"):
+            out.setdefault(r[0], []).append(r[1])
+        return out
+
+    def _product_form(product=None, errors=None, form=None):
+        conn = db()
+        sold = None
+        if product is not None:
+            sold = conn.execute("SELECT COUNT(*) FROM orders WHERE product_id = ?", (product["product_id"],)).fetchone()[0]
+        return render_template("product_form.html", product=product, errors=errors or {}, form=form or {},
+                               active="products", subcats=_subcategories(conn), order_count=sold)
+
+    @app.route("/products/new", methods=["GET", "POST"])
+    def product_new():
+        if request.method == "GET":
+            return _product_form()
+        conn = db()
+        d, errors = validate_product(request.form, conn)
+        if errors:
+            return _product_form(errors=errors, form=request.form), 422
+        d["product_id"] = dbm.next_id(conn, "products", "product_id", "P", 3)
+        with conn:
+            conn.execute(f"INSERT INTO products ({', '.join(d)}) VALUES ({', '.join('?' * len(d))})", list(d.values()))
+        flash(f"Product {d['product_id']} · {d['product_name']} added at ${d['unit_price']:,.2f} with {d['stock_on_hand']} in stock.", "success")
+        return redirect(url_for("products", q=d["product_id"]))
+
+    @app.route("/products/<product_id>/edit", methods=["GET", "POST"])
+    def product_edit(product_id):
+        conn = db()
+        product = conn.execute("SELECT * FROM products WHERE product_id = ?", (product_id,)).fetchone()
+        if product is None:
+            abort(404)
+        if request.method == "GET":
+            return _product_form(product=product)
+        d, errors = validate_product(request.form, conn, product_id)
+        if errors:
+            return _product_form(product=product, errors=errors, form=request.form), 422
+        with conn:
+            conn.execute(f"UPDATE products SET {', '.join(f'{k} = ?' for k in d)} WHERE product_id = ?",
+                         [*d.values(), product_id])
+        flash(f"{d['product_name']} updated.", "success")
+        return redirect(url_for("products", category=d["category"]))
+
+    @app.post("/products/<product_id>/delete")
+    def product_delete(product_id):
+        conn = db()
+        try:
+            with conn:
+                n = conn.execute("DELETE FROM products WHERE product_id = ?", (product_id,)).rowcount
+            flash(f"Product {product_id} deleted." if n else f"Product {product_id} was not found.",
+                  "success" if n else "error")
+        except sqlite3.IntegrityError:
+            cnt = conn.execute("SELECT COUNT(*) FROM orders WHERE product_id = ?", (product_id,)).fetchone()[0]
+            flash(f"{product_id} appears on {cnt} order{'s' if cnt != 1 else ''}, so it can't be deleted. "
+                  f"Set its stock to 0 to stop selling it.", "error")
+        return redirect(safe_next(request.form.get("next"), url_for("products")))
 
     # ---- customers ------------------------------------------------------------------------
     @app.get("/customers")

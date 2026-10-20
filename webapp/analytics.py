@@ -72,18 +72,30 @@ def compute(conn: sqlite3.Connection, country: str = "", segment: str = "", cate
                      {"k": "Delivered & kept", "n": f["kept"]}, {"k": "Reviewed", "n": f["reviewed"]}]
 
     out["recent_orders"] = [dict(r) for r in q(
-        """SELECT order_id, order_date, customer_id, country, product_category, quantity, total_amount, order_status
+        """SELECT order_id, order_date, customer_id, country, product_name, product_category, quantity, total_amount, order_status
            FROM v_orders {W} ORDER BY order_date DESC, order_id DESC LIMIT 6""")]
     events = []
     for r in out["recent_orders"][:5]:
         verb = {"Delivered": "ordered", "Returned": "returned", "Cancelled": "cancelled"}[r["order_status"]]
         events.append({"date": r["order_date"], "kind": r["order_status"].lower(), "who": r["customer_id"],
-                       "text": f"{verb} {r['product_category']} · ${r['total_amount']:,.2f}"})
+                       "text": f"{verb} {r['quantity']} × {r['product_name']} · ${r['total_amount']:,.2f}"})
     for r in conn.execute("""SELECT customer_id, signup_date, city, country FROM customers
                              ORDER BY signup_date DESC, customer_id DESC LIMIT 2"""):
         events.append({"date": r["signup_date"], "kind": "signup", "who": r["customer_id"],
                        "text": f"signed up from {r['city']}, {r['country']}"})
     out["activity"] = sorted(events, key=lambda e: e["date"], reverse=True)[:5]
+
+    # products: best sellers in the current view, and stock that needs attention (catalogue-wide)
+    out["top_products"] = [dict(r) for r in q(
+        """SELECT product_id, product_name, product_category AS category, subcategory,
+                  SUM(CASE WHEN order_status = 'Delivered' THEN quantity ELSE 0 END) AS units, SUM(net_revenue) AS rev
+           FROM v_orders {W} GROUP BY product_id ORDER BY rev DESC LIMIT 6""")]
+    out["subcategories"] = [dict(r) for r in q(
+        """SELECT product_category AS category, subcategory AS k, SUM(net_revenue) AS rev
+           FROM v_orders {W} GROUP BY product_category, subcategory ORDER BY rev DESC""")]
+    out["low_stock"] = [dict(r) for r in conn.execute(
+        """SELECT product_id, product_name, category, stock_on_hand AS stock, reorder_level
+           FROM products WHERE stock_on_hand <= reorder_level ORDER BY stock_on_hand, product_name LIMIT 6""")]
 
     # ---------------- customers & service ----------------
     seg_rows = {r["k"]: r for r in q(

@@ -31,11 +31,35 @@
     </section>
 
     <section class="form-card">
-      <header><h2>Item</h2></header>
+      <header><h2>Product</h2><p>Price comes from the product catalogue; quantity is limited by the stock on hand.</p></header>
       <div class="fields">
-        {{ select_field('product_category', 'Category', C.CATEGORIES, v('product_category'), errors, blank='Select category', cls='full') }}
+        {% set cur_pid = v('product_id', request.args.get('product_id', '')) %}
+        {% set cur_cat = (products|selectattr('product_id', 'equalto', cur_pid)|map(attribute='category')|first) or '' %}
+        <div class="field"><label for="category">Category</label>
+          <select id="category" aria-controls="product_id">
+            <option value="">All categories</option>
+            {% for c in C.CATEGORIES %}<option {{ 'selected' if c == cur_cat }}>{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field {{ 'invalid' if errors.get('product_id') }}"><label for="product_id">Product</label>
+          <select id="product_id" name="product_id">
+            <option value="">Select product</option>
+            {% for cat, items in products|groupby('category') %}
+              {% for sub, its in items|groupby('subcategory') %}
+              <optgroup label="{{ cat }} · {{ sub }}" data-category="{{ cat }}">
+                {% for p in its %}<option value="{{ p.product_id }}" data-price="{{ p.unit_price }}" data-stock="{{ p.stock_on_hand }}" data-category="{{ cat }}" data-sub="{{ sub }}" {{ 'selected' if p.product_id == cur_pid }}>{{ p.product_name }}{% if p.stock_on_hand == 0 %} — out of stock{% endif %}</option>{% endfor %}
+              </optgroup>
+              {% endfor %}
+            {% endfor %}
+          </select>
+          {% if errors.get('product_id') %}<span class="err">{{ errors['product_id'] }}</span>{% endif %}
+        </div>
+        <div class="full"><div class="product-card" id="productCard">Choose a product to see its price and stock.</div></div>
         {{ input_field('quantity', 'Quantity', v('quantity', 1), errors, 'number', attrs='min="1" max="50" step="1"') }}
-        {{ input_field('unit_price', 'Unit price (USD)', v('unit_price'), errors, 'number', attrs='min="0.01" max="5000" step="0.01" placeholder="0.00"') }}
+        <div class="field"><label for="price_view">Unit price</label>
+          <input type="text" id="price_view" value="" readonly tabindex="-1" class="readonly" aria-describedby="priceHint">
+          <span class="hint" id="priceHint">Set by the catalogue</span>
+        </div>
         {{ input_field('discount_pct', 'Discount (%)', v('discount_pct', 0), errors, 'number', attrs='min="0" max="100" step="0.5"') }}
         {{ input_field('shipping_cost', 'Shipping (USD)', v('shipping_cost', 0), errors, 'number', hint='Free over $120 in the historical data', attrs='min="0" max="100" step="0.01"') }}
       </div>
@@ -56,6 +80,7 @@
   <aside class="form-card summary" aria-label="Order summary">
     <header><h2>Summary</h2></header>
     <div class="lines">
+      <div class="line"><span id="sItem">No product selected</span><b id="sUnit"></b></div>
       <div class="line"><span>Subtotal</span><b id="sSub">$0.00</b></div>
       <div class="line"><span>Discount</span><b id="sDisc">$0.00</b></div>
       <div class="line"><span>Shipping</span><b id="sShip">$0.00</b></div>
@@ -74,19 +99,72 @@
 <script>
 (function () {
   const f = document.getElementById('orderForm'), $ = n => f.elements[n], out = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const money = v => '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // the price is the catalogue price (an edited order keeps the price it was sold at)
+  const orig = {{ {'pid': order.product_id, 'price': order.unit_price, 'qty': order.quantity, 'status': order.order_status}|tojson if editing else 'null' }};
+  const catSel = out('category'), prodSel = $('product_id'), card = out('productCard'), qty = $('quantity');
+  const allOpts = [...prodSel.querySelectorAll('optgroup')].map(g => ({ g, cat: g.dataset.category }));
+  function current() {
+    const o = prodSel.selectedOptions[0];
+    if (!o || !o.value) return null;
+    const same = orig && orig.pid === o.value;
+    const stock = +o.dataset.stock + (same && orig.status === 'Delivered' ? orig.qty : 0);
+    return { id: o.value, name: o.textContent.replace(' — out of stock', ''), cat: o.dataset.category, sub: o.dataset.sub,
+             price: same ? orig.price : +o.dataset.price, stock };
+  }
+  function filterProducts() {
+    const c = catSel.value;
+    allOpts.forEach(({ g, cat }) => { g.hidden = !!c && cat !== c; g.disabled = !!c && cat !== c; });
+    const p = current();
+    if (p && c && p.cat !== c) { prodSel.value = ''; }
+    syncProduct();
+  }
+  function syncProduct() {
+    const p = current(), delivered = $('order_status').value === 'Delivered';
+    if (!p) {
+      card.className = 'product-card'; card.textContent = 'Choose a product to see its price and stock.';
+      out('price_view').value = ''; qty.max = 50; total(); return;
+    }
+    if (!catSel.value) catSel.value = p.cat;
+    out('price_view').value = money(p.price);
+    qty.max = delivered ? Math.max(1, Math.min(50, p.stock)) : 50;
+    const low = p.stock <= 10;
+    card.className = 'product-card found' + (p.stock === 0 ? ' out' : low ? ' low' : '');
+    card.innerHTML = `<span class="name">${esc(p.name)}</span> · ${esc(p.cat)} › ${esc(p.sub)}<br>` +
+      `<span class="muted">${money(p.price)} each · </span><span class="stock">${p.stock === 0 ? 'Out of stock' : p.stock + ' in stock'}</span>`;
+    checkQty(); total();
+  }
+  function checkQty() {
+    const p = current(), err = out('qtyLive');
+    const server = qty.closest('.field').querySelector('.err:not(#qtyLive)');
+    if (server && !checkQty.touched) { err.textContent = ''; return; }   // the server's message is already shown
+    if (server) server.remove();
+    const over = p && $('order_status').value === 'Delivered' && (+qty.value || 0) > p.stock;
+    qty.closest('.field').classList.toggle('invalid', !!over);
+    if (err) err.textContent = over ? (p.stock ? `Only ${p.stock} in stock.` : 'Out of stock.') : '';
+  }
+  catSel.addEventListener('change', filterProducts);
+  prodSel.addEventListener('change', syncProduct);
+  qty.addEventListener('input', () => { checkQty.touched = true; checkQty(); });
+  prodSel.addEventListener('change', () => { checkQty.touched = true; });
+  qty.insertAdjacentHTML('afterend', '<span class="err" id="qtyLive" aria-live="polite"></span>');
 
   // same formula as the v_orders view: quantity × price × (1 − discount) + shipping
   function total() {
-    const q = +$('quantity').value || 0, p = +$('unit_price').value || 0, d = +$('discount_pct').value || 0, s = +$('shipping_cost').value || 0;
-    const sub = q * p, disc = sub * d / 100, tot = sub - disc + s, st = $('order_status').value;
+    const p = current();
+    const q = +qty.value || 0, pr = p ? p.price : 0, d = +$('discount_pct').value || 0, s = +$('shipping_cost').value || 0;
+    const sub = q * pr, disc = sub * d / 100, tot = sub - disc + s, st = $('order_status').value;
+    out('sItem').textContent = p ? `${q} × ${p.name}` : 'No product selected';
+    out('sUnit').textContent = p ? money(pr) : '';
     out('sSub').textContent = money(sub);
     out('sDisc').textContent = disc ? '−' + money(disc) : money(0);
     out('sShip').textContent = money(s);
     out('sTotal').textContent = money(tot);
-    out('sNet').textContent = st === 'Delivered' ? 'Counts toward net revenue.' : `${st} orders count as $0 net revenue.`;
+    out('sNet').textContent = st === 'Delivered' ? 'Counts toward net revenue and takes stock.' : `${st} orders count as $0 and take no stock.`;
   }
-  ['quantity', 'unit_price', 'discount_pct', 'shipping_cost', 'order_status'].forEach(n => $(n).addEventListener('input', total));
+  ['quantity', 'discount_pct', 'shipping_cost'].forEach(n => $(n).addEventListener('input', total));
 
   // a cancelled order is never delivered or reviewed (the database enforces this too)
   function syncStatus() {
@@ -94,10 +172,10 @@
     ['delivery_days', 'review_rating'].forEach(n => { $(n).disabled = off; if (off) $(n).value = ''; });
     total();
   }
-  $('order_status').addEventListener('change', syncStatus); syncStatus();
+  $('order_status').addEventListener('change', () => { syncStatus(); syncProduct(); }); syncStatus();
+  filterProducts();
 
-  const inp = $('customer_id'), card = out('custCard'); let t;
-  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const inp = $('customer_id'), ccard = out('custCard'); let t;
   async function lookup() {
     const id = inp.value.trim().toUpperCase();
     if (!id) return;
@@ -105,12 +183,12 @@
       const r = await fetch(inp.dataset.api.replace('__ID__', encodeURIComponent(id)));
       const c = await r.json();
       if (c.found) {
-        card.className = 'cust-preview found';
-        card.innerHTML = `<span class="name">${esc(c.customer_id)}</span> · ${esc(c.gender)}, ${c.age} · ${esc(c.city)}, ${esc(c.country)} · ${esc(c.customer_segment)}<br>` +
+        ccard.className = 'cust-preview found';
+        ccard.innerHTML = `<span class="name">${esc(c.customer_id)}</span> · ${esc(c.gender)}, ${c.age} · ${esc(c.city)}, ${esc(c.country)} · ${esc(c.customer_segment)}<br>` +
           `<span class="muted">${c.orders} previous order${c.orders === 1 ? '' : 's'} · customer since ${esc(c.signup_date)}</span>`;
       } else {
-        card.className = 'cust-preview missing';
-        card.innerHTML = `No customer with ID ${esc(id)}. <a href="{{ url_for('customer_new', then='order') }}">Create a customer</a>`;
+        ccard.className = 'cust-preview missing';
+        ccard.innerHTML = `No customer with ID ${esc(id)}. <a href="{{ url_for('customer_new', then='order') }}">Create a customer</a>`;
       }
     } catch (e) { /* the server validates on submit regardless */ }
   }

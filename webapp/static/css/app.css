@@ -480,3 +480,32 @@ body { font-size: 14.5px; font-feature-settings: "cv11", "ss01"; }
 .funnel .col { flex: 1; min-height: 120px; margin: 0 -10px 0 -12px; }
 .funnel .stage:first-child .col { margin-left: 0; }
 .feed { gap: 12px; }
+
+/* products */
+.nav-item .count.alert { color: var(--critical-text); font-weight: 600; }
+.nav-item.on .count.alert { color: #fff; }
+.prod-cell { display: flex; flex-direction: column; line-height: 1.3; }
+.prod-cell .muted { font-size: 12.5px; }
+.stock-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-weight: 600; font-size: 13px; font-variant-numeric: tabular-nums; }
+.stock-badge.ok { color: var(--ink); padding: 0; }
+.stock-badge.low { background: color-mix(in srgb, var(--warning) 18%, transparent); color: #8a5a00; }
+[data-theme="dark"] .stock-badge.low { color: #f5c25b; }
+.stock-badge.out { background: var(--critical-soft); color: var(--critical-text); }
+.stock-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.kpi-link { color: inherit; }
+.kpi-link:hover { text-decoration: none; border-color: var(--accent); }
+.product-card { font-size: 13.5px; color: var(--ink-2); border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); padding: 8px 10px; }
+.product-card.found { border-style: solid; border-color: var(--border); background: var(--surface-2); color: var(--ink); }
+.product-card .name { font-weight: 600; }
+.product-card .stock { font-weight: 600; color: var(--good-text); }
+.product-card.low .stock { color: #8a5a00; }
+[data-theme="dark"] .product-card.low .stock { color: #f5c25b; }
+.product-card.out .stock { color: var(--critical-text); }
+input.readonly, input[readonly] { background-color: var(--surface-3); color: var(--ink); font-weight: 600; cursor: default; }
+input[readonly]:focus { box-shadow: none; border-color: var(--border-strong); }
+optgroup[hidden] { display: none; }
+.feed .icon-chip.low { background: color-mix(in srgb, var(--warning) 18%, transparent); color: #8a5a00; }
+[data-theme="dark"] .feed .icon-chip.low { color: #f5c25b; }
+.stock-feed time { display: flex; gap: 6px; align-items: center; margin-top: 3px; }
+.stock-feed .stock-badge { font-size: 12px; padding: 0 7px; }
+.mini .prod-cell .muted { font-size: 12px; }

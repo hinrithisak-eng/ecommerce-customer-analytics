@@ -28,6 +28,7 @@
     <div class="nav-label">Records</div>
     <a class="nav-item {{ 'on' if active == 'orders' }}" href="{{ url_for('orders') }}">{{ icon('receipt') }}Orders<span class="count" id="navOrders">{{ '{:,}'.format(nav.orders) }}</span></a>
     <a class="nav-item {{ 'on' if active == 'customers' }}" href="{{ url_for('customers') }}">{{ icon('users') }}Customers<span class="count">{{ '{:,}'.format(nav.customers) }}</span></a>
+    <a class="nav-item {{ 'on' if active == 'products' }}" href="{{ url_for('products') }}">{{ icon('box') }}Products{% if nav.low_stock %}<span class="count alert" title="{{ nav.low_stock }} product{{ 's' if nav.low_stock != 1 }} at or below reorder level">{{ nav.low_stock }} low</span>{% else %}<span class="count">{{ nav.products }}</span>{% endif %}</a>
   </nav>
   <div class="sidebar-foot">
     <div class="db-status" id="dbStatus" title="Every page reads from webapp/instance/ecommerce.db"><span class="dot"></span><span>SQLite database</span></div>
@@ -44,7 +45,7 @@
 <div class="main">
   <header class="topbar">
     <form class="search topsearch" method="get" action="{{ url_for('orders') }}" role="search">
-      {{ icon('search') }}<input type="search" name="q" placeholder="Search orders by ID, customer or city" aria-label="Search orders" value="{{ request.args.get('q', '') if active == 'orders' else '' }}">
+      {{ icon('search') }}<input type="search" name="q" placeholder="Search orders by ID, customer, product or city" aria-label="Search orders" value="{{ request.args.get('q', '') if active == 'orders' else '' }}">
     </form>
     <div class="topbar-right">
       <span class="date-chip">{{ icon('calendar') }}Data through {{ nav.last_order }}</span>

@@ -121,6 +121,7 @@
     undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/>',
     x: '<circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0115 0"/>',
+    box: '<path d="M3.5 7.5L12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5L12 12l8.5-4.5M12 12v9"/>',
   };
   const svgI = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
   const icon = d => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
@@ -238,9 +239,9 @@
       `<div class="col"><i style="height:${Math.max(4, s.n / F[0].n * 100).toFixed(1)}%" title="${esc(s.k)}: ${num(s.n)} orders"></i></div></div>`).join('');
 
     // recent orders
-    $('recent').innerHTML = `<table class="mini"><thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Category</th><th class="r">Total</th><th>Status</th></tr></thead><tbody>` +
-      d.recent_orders.map(r => `<tr><td><a href="${CFG.ordersUrl}?q=${encodeURIComponent(r.order_id)}">${esc(r.order_id)}</a></td><td class="num">${esc(r.order_date)}</td>` +
-        `<td>${esc(r.customer_id)}</td><td>${esc(r.product_category)}</td><td class="r">${usd2(r.total_amount)}</td>` +
+    $('recent').innerHTML = `<table class="mini"><thead><tr><th>Order</th><th>Customer</th><th>Product</th><th class="r">Total</th><th>Status</th></tr></thead><tbody>` +
+      d.recent_orders.map(r => `<tr><td><div class="prod-cell"><a href="${CFG.ordersUrl}?q=${encodeURIComponent(r.order_id)}">${esc(r.order_id)}</a><span class="muted num">${esc(r.order_date)}</span></div></td>` +
+        `<td>${esc(r.customer_id)}</td><td><div class="prod-cell"><span>${esc(r.product_name)}</span><span class="muted">${esc(r.product_category)}</span></div></td><td class="r">${usd2(r.total_amount)}</td>` +
         `<td><span class="status-pill ${r.order_status}">${r.order_status}</span></td></tr>`).join('') + '</tbody></table>';
 
     // acquisition channels: customers per channel, colour fixed per channel
@@ -257,6 +258,22 @@
     const fmtDate = s => new Date(s + 'T00:00').toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
     $('activity').innerHTML = d.activity.map(e => `<li><span class="icon-chip ${e.kind}">${svgI(kindIcon[e.kind])}</span>` +
       `<div><b>${esc(e.who)}</b> ${esc(e.text)}<time datetime="${e.date}">${fmtDate(e.date)}</time></div></li>`).join('');
+    products(d);
+  }
+
+  function products(d) {
+    const P = d.top_products, maxR = Math.max(1, ...P.map(p => p.rev));
+    const S = d.subcategories, topSub = S[0];
+    sub('products', topSub ? `Top subcategory: ${topSub.k} (${topSub.category}) with ${usd(topSub.rev)} net revenue.` : '');
+    $('topProducts').innerHTML = `<table class="mini"><thead><tr><th>Product</th><th>Subcategory</th><th class="r">Units sold</th><th class="r" style="width:38%">Net revenue</th></tr></thead><tbody>` +
+      P.map(p => `<tr><td><div class="prod-cell"><span>${esc(p.product_name)}</span><span class="muted">${esc(p.category)}</span></div></td><td>${esc(p.subcategory)}</td>` +
+        `<td class="r">${num(p.units)}</td><td class="r"><div class="databar"><i style="width:${(p.rev / maxR * 100).toFixed(1)}%"></i>${usd(p.rev)}</div></td></tr>`).join('') + '</tbody></table>';
+    const L = d.low_stock;
+    sub('stock', L.length ? `${L.filter(p => p.stock === 0).length} sold out, ${L.filter(p => p.stock > 0).length} at or below reorder level.` : 'Every product is above its reorder level.');
+    $('stockList').innerHTML = L.length ? L.map(p => `<li><span class="icon-chip ${p.stock === 0 ? 'returned' : 'low'}">${svgI('box')}</span>` +
+      `<div><a href="${CFG.productsUrl}?q=${encodeURIComponent(p.product_id)}"><b>${esc(p.product_name)}</b></a><time>${esc(p.category)} · ` +
+      `<span class="stock-badge ${p.stock === 0 ? 'out' : 'low'}">${p.stock === 0 ? 'Out of stock' : p.stock + ' left'}</span></time></div></li>`).join('')
+      : '<li class="muted">Nothing to restock.</li>';
   }
 
   function histogram(d) {

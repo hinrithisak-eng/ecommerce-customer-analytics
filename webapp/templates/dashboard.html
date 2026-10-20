@@ -99,6 +99,15 @@
         <div class="card-head"><div><h3 class="card-title">Recent activity</h3></div></div>
         <div class="card-body"><ul class="feed" id="activity"></ul></div>
       </section>
+
+      <section class="card c-8" id="card-products">
+        <div class="card-head"><div><h3 class="card-title">Best-selling products</h3><p class="card-sub" id="sub-products">&nbsp;</p></div><a class="card-link" href="{{ url_for('products', sort='revenue', dir='desc') }}">All products</a></div>
+        <div class="card-body" id="topProducts"></div>
+      </section>
+      <section class="card c-4" id="card-stock">
+        <div class="card-head"><div><h3 class="card-title">Stock alerts</h3><p class="card-sub" id="sub-stock">&nbsp;</p></div><a class="card-link" href="{{ url_for('products', stock='low') }}">Restock</a></div>
+        <div class="card-body"><ul class="feed stock-feed" id="stockList"></ul></div>
+      </section>
     </div>
   {% else %}
     <div class="kpis" id="kpis"></div>
@@ -128,6 +137,6 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='vendor/chart.umd.js') }}"></script>
-<script>window.DASH = {api: "{{ url_for('api_analytics') }}", view: "{{ view }}", payments: {{ C.PAYMENTS|tojson }}, channels: {{ C.CHANNELS|tojson }}, ordersUrl: "{{ url_for('orders') }}"};</script>
+<script>window.DASH = {api: "{{ url_for('api_analytics') }}", view: "{{ view }}", payments: {{ C.PAYMENTS|tojson }}, channels: {{ C.CHANNELS|tojson }}, ordersUrl: "{{ url_for('orders') }}", productsUrl: "{{ url_for('products') }}"};</script>
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}

@@ -24,8 +24,8 @@ def csrf(client, url="/orders/new"):
 
 
 def order_form(token, **over):
-    data = dict(_csrf=token, customer_id="C1122", order_date="2025-06-30", product_category="Electronics",
-                quantity="2", unit_price="250", discount_pct="10", shipping_cost="0", payment_method="E-Wallet",
+    data = dict(_csrf=token, customer_id="C1122", order_date="2025-06-30", product_id="P001",   # Smartphone, $349
+                quantity="2", discount_pct="10", shipping_cost="0", payment_method="E-Wallet",
                 device_type="Mobile", order_status="Delivered", delivery_days="3", review_rating="5")
     data.update(over)
     return data
@@ -34,18 +34,24 @@ def order_form(token, **over):
 # ------------------------------------------------------------------ database
 def test_database_matches_cleaned_dataset(tmp_path):
     report = database.build_database(tmp_path / "db.sqlite")
-    assert report == {"customers": 721, "orders": 1972, "customers_with_conflicting_attributes": 69}
+    assert report == {"customers": 723, "orders": 1995, "products": 60, "customers_with_conflicting_attributes": 71}
     conn = database.connect(tmp_path / "db.sqlite")
     rev, aov = conn.execute("SELECT SUM(net_revenue), AVG(total_amount) FROM v_orders").fetchone()
-    assert round(rev) == 227155 and round(aov, 2) == 136.47
+    assert round(rev) == 148675 and round(aov, 2) == 91.90
+    # stock in the database equals the catalogue snapshot (history is loaded before the stock triggers)
+    assert conn.execute("SELECT stock_on_hand FROM products WHERE product_id = 'P001'").fetchone()[0] == 30
 
 
 @pytest.mark.parametrize("sql", [
-    "INSERT INTO orders VALUES ('X','2025-01-01','C1122','Books',0,10,0,0,'PayPal','Mobile','Delivered',3,5)",      # qty 0
-    "INSERT INTO orders VALUES ('X','2025-01-01','C1122','Books',1,10,0,0,'PayPal','Mobile','Delivered',3,7)",      # rating 7
-    "INSERT INTO orders VALUES ('X','2025-01-01','NOBODY','Books',1,10,0,0,'PayPal','Mobile','Delivered',3,5)",     # unknown customer
-    "INSERT INTO orders VALUES ('X','2025-01-01','C1122','Books',1,10,0,0,'PayPal','Mobile','Cancelled',3,NULL)",   # cancelled w/ delivery
+    "INSERT INTO orders VALUES ('X','2025-01-01','C1122','P036',0,9,0,0,'PayPal','Mobile','Delivered',3,5)",       # qty 0
+    "INSERT INTO orders VALUES ('X','2025-01-01','C1122','P036',1,9,0,0,'PayPal','Mobile','Delivered',3,7)",       # rating 7
+    "INSERT INTO orders VALUES ('X','2025-01-01','NOBODY','P036',1,9,0,0,'PayPal','Mobile','Delivered',3,5)",      # unknown customer
+    "INSERT INTO orders VALUES ('X','2025-01-01','C1122','P999',1,9,0,0,'PayPal','Mobile','Delivered',3,5)",       # unknown product
+    "INSERT INTO orders VALUES ('X','2025-01-01','C1122','P036',1,9,0,0,'PayPal','Mobile','Cancelled',3,NULL)",    # cancelled w/ delivery
+    "INSERT INTO orders VALUES ('X','2025-01-01','C1122','P001',31,349,0,0,'PayPal','Mobile','Delivered',3,5)",    # more than the 30 in stock
+    "UPDATE products SET stock_on_hand = -1 WHERE product_id = 'P001'",                                          # negative stock
     "DELETE FROM customers WHERE customer_id = 'C1122'",                                                         # has orders
+    "DELETE FROM products WHERE product_id = 'P036'",                                                            # on orders
 ])
 def test_database_constraints_reject_invalid_data(tmp_path, sql):
     database.build_database(tmp_path / "db.sqlite")
@@ -57,23 +63,25 @@ def test_database_constraints_reject_invalid_data(tmp_path, sql):
 def test_analytics_reproduces_notebook_findings(tmp_path):
     database.build_database(tmp_path / "db.sqlite")
     a = analytics.compute(database.connect(tmp_path / "db.sqlite"))
-    assert a["n"] == 1972 and a["kpis"]["median"] == pytest.approx(75.73)
+    assert a["n"] == 1995 and a["kpis"]["median"] == pytest.approx(49.54)
     assert a["category"][0]["k"] == "Electronics"
-    assert a["correlation"]["r"] == pytest.approx(-0.378, abs=0.001)
-    assert a["retention"]["repeat_rate"] == pytest.approx(0.671, abs=0.001)
-    assert [round(b["rating"], 2) for b in a["delivery_bands"]] == [3.96, 3.65, 3.34, 3.02]
+    assert a["correlation"]["r"] == pytest.approx(-0.406, abs=0.001)
+    assert a["retention"]["repeat_rate"] == pytest.approx(0.672, abs=0.001)
+    assert [round(b["rating"], 2) for b in a["delivery_bands"]] == [3.97, 3.68, 3.29, 3.00]
 
 
 # ------------------------------------------------------------------ pages & API
-@pytest.mark.parametrize("url", ["/", "/orders", "/customers", "/orders/new", "/customers/new",
-                                 "/orders?q=C1122&sort=total_amount&dir=asc", "/orders/ORD100305/edit"])
+@pytest.mark.parametrize("url", ["/", "/analytics/customers", "/orders", "/customers", "/orders/new", "/customers/new",
+                                 "/orders?q=C1122&sort=total_amount&dir=asc", "/orders/ORD100305/edit",
+                                 "/products", "/products?stock=low&sort=revenue&dir=desc", "/products/new",
+                                 "/products/P001/edit", "/orders/new?product_id=P036"])
 def test_pages_render(client, url):
     assert client.get(url).status_code == 200
 
 
 def test_api_filters(client):
-    assert client.get("/api/analytics").get_json()["n"] == 1972
-    assert client.get("/api/analytics?country=Cambodia").get_json()["n"] == 616
+    assert client.get("/api/analytics").get_json()["n"] == 1995
+    assert client.get("/api/analytics?country=Cambodia").get_json()["n"] == 623
     assert client.get("/api/analytics?country=Atlantis").get_json()["n"] == 0
 
 
@@ -85,7 +93,7 @@ def test_add_order_updates_dashboard(client):
     assert r.status_code == 302
     after = client.get("/api/analytics").get_json()
     assert after["n"] == before["n"] + 1
-    assert after["kpis"]["revenue"] == pytest.approx(before["kpis"]["revenue"] + 450.0)  # 2 × 250 × 0.9
+    assert after["kpis"]["revenue"] == pytest.approx(before["kpis"]["revenue"] + 628.2)  # 2 × $349 × 0.9
     assert client.get("/api/version").get_json()["version"] > v0
 
 
@@ -115,7 +123,7 @@ def test_delete_order(client):
     t = csrf(client)
     client.post("/orders/new", data=order_form(t))
     client.post("/orders/ORD102000/delete", data={"_csrf": t})
-    assert client.get("/api/analytics").get_json()["n"] == 1972
+    assert client.get("/api/analytics").get_json()["n"] == 1995
 
 
 def test_customer_with_orders_cannot_be_deleted(client):
@@ -148,14 +156,79 @@ def test_reset_restores_original_data(client):
     client.post("/orders/new", data=order_form(t))
     v = client.get("/api/version").get_json()["version"]
     client.post("/admin/reset", data={"_csrf": t})
-    assert client.get("/api/analytics").get_json()["n"] == 1972
+    assert client.get("/api/analytics").get_json()["n"] == 1995
     assert client.get("/api/version").get_json()["version"] > v
 
 
 def test_dashboard_widgets_data(client):
     a = client.get("/api/analytics").get_json()
     f = [s["n"] for s in a["funnel"]]
-    assert f[0] == 1972 and f[0] >= f[1] >= f[2] >= f[3] > 0   # each stage is a subset of the previous one
+    assert f[0] == 1995 and f[0] >= f[1] >= f[2] >= f[3] > 0   # each stage is a subset of the previous one
     assert len(a["recent_orders"]) == 6 and a["recent_orders"][0]["order_date"] == "2025-06-30"
     assert sum(c["c"] for c in a["channel"]) == a["kpis"]["customers"]
     assert b"sea-map" in client.get("/").data
+
+
+# ------------------------------------------------------------------ products, price and stock
+def stock(client, pid):
+    return int(re.search(rf'id="stock_on_hand" name="stock_on_hand" value="(\d+)"',
+                         client.get(f"/products/{pid}/edit").get_data(as_text=True)).group(1))
+
+
+def test_price_comes_from_catalogue_not_the_form(client):
+    r = client.post("/orders/new", data=order_form(csrf(client), unit_price="0.01", quantity="1", discount_pct="0"))
+    assert r.status_code == 302
+    o = client.get("/api/analytics").get_json()["recent_orders"][0]
+    assert o["product_name"] == "Smartphone A54 128GB" and o["total_amount"] == pytest.approx(349.0)
+
+
+def test_delivered_order_takes_stock_and_cancel_returns_it(client):
+    t = csrf(client)
+    assert stock(client, "P001") == 30
+    client.post("/orders/new", data=order_form(t, quantity="3"))
+    assert stock(client, "P001") == 27
+    client.post("/orders/ORD102000/edit", data=order_form(t, quantity="3", order_status="Cancelled",
+                                                          delivery_days="", review_rating=""))
+    assert stock(client, "P001") == 30
+    client.post("/orders/ORD102000/edit", data=order_form(t, quantity="5"))
+    assert stock(client, "P001") == 25
+    client.post("/orders/ORD102000/delete", data={"_csrf": t})
+    assert stock(client, "P001") == 30
+
+
+def test_order_for_more_than_stock_is_rejected(client):
+    r = client.post("/orders/new", data=order_form(csrf(client), quantity="31"))
+    assert r.status_code == 422
+    errs = re.findall(r'class="err">([^<]+)', r.get_data(as_text=True))
+    assert any("Only 30 units" in e for e in errs)
+    r = client.post("/orders/new", data=order_form(csrf(client), product_id="P004", quantity="1"))   # sold out
+    assert r.status_code == 422 and b"out of stock" in r.data
+    assert stock(client, "P001") == 30
+
+
+def test_editing_an_order_can_reuse_its_own_units(client):
+    t = csrf(client)
+    client.post("/orders/new", data=order_form(t, quantity="30"))          # takes all 30
+    assert stock(client, "P001") == 0
+    assert client.post("/orders/ORD102000/edit", data=order_form(t, quantity="30")).status_code == 302
+    assert client.post("/orders/ORD102000/edit", data=order_form(t, quantity="31")).status_code == 422
+
+
+def test_add_and_restock_product(client):
+    t = csrf(client, "/products/new")
+    r = client.post("/products/new", data=dict(_csrf=t, product_name="Comic Anthology", category="Books",
+                                               subcategory="Comics & Manga", unit_price="20", stock_on_hand="5",
+                                               reorder_level="2"))
+    assert r.status_code == 302
+    assert client.post("/orders/new", data=order_form(t, product_id="P061", quantity="6")).status_code == 422
+    client.post("/products/P061/edit", data=dict(_csrf=t, product_name="Comic Anthology", category="Books",
+                                                 subcategory="Comics & Manga", unit_price="20", stock_on_hand="50",
+                                                 reorder_level="2"))
+    assert client.post("/orders/new", data=order_form(t, product_id="P061", quantity="6", discount_pct="0")).status_code == 302
+    assert client.get("/api/analytics").get_json()["recent_orders"][0]["total_amount"] == pytest.approx(120.0)
+    assert stock(client, "P061") == 44
+
+
+def test_product_on_orders_cannot_be_deleted(client):
+    r = client.post("/products/P036/delete", data={"_csrf": csrf(client)}, follow_redirects=True)
+    assert b"can&#39;t be deleted" in r.data or b"can't be deleted" in r.data

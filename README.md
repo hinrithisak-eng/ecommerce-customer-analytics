@@ -10,15 +10,15 @@
 
 An online retailer selling across seven Southeast-Asian markets has grown quickly but has never analysed its order history systematically. Management does not know **which products, customer groups and markets drive revenue**, **whether customers come back after their first purchase**, or **why some customers leave poor reviews and return products**.
 
-**In scope:** order-level transactions from 1 Jan 2024 – 30 Jun 2025 (2,045 raw rows / 1,972 after cleaning), customer attributes (age, gender, country, segment, channel), order attributes (category, price, discount, payment, device, delivery time, status, rating), data cleaning, descriptive & statistical analysis, and visualisation.
+**In scope:** order-level transactions from 1 Jan 2024 – 30 Jun 2025 (2,045 raw rows / 1,995 after cleaning), a product catalogue of 60 products in 7 categories and 30 subcategories (e.g. Books → Comics & Manga, Programming, Fiction), each with a fixed price and stock on hand, customer attributes (age, gender, country, segment, channel), order attributes (product, price, discount, payment, device, delivery time, status, rating), data cleaning, descriptive & statistical analysis, and visualisation.
 
-**Out of scope:** SKU-level analysis, cost/margin data, predictive modelling, web-analytics events.
+**Out of scope:** cost/margin data, price changes over time, predictive modelling, web-analytics events.
 
 ## 2. Objectives & analytical questions
 
 | # | Objective | Success measure |
 |---|-----------|-----------------|
-| O1 | Identify the main revenue drivers | Revenue share per category / segment / country / channel; groups producing ≥ 80 % of revenue |
+| O1 | Identify the main revenue drivers | Revenue share per category / subcategory / product / segment / country / channel; groups producing ≥ 80 % of revenue |
 | O2 | Measure retention and value concentration | Repeat-purchase rate, revenue share of top 20 % customers, churn-risk share |
 | O3 | Diagnose service-quality problems | Correlation of delivery time with rating; return rate per category |
 
@@ -31,6 +31,7 @@ An online retailer selling across seven Southeast-Asian markets has grown quickl
 5. Does delivery time affect the review rating customers give?
 6. What share of customers are repeat buyers, and how many are at risk of churning?
 7. Do device usage and payment preferences differ across age groups?
+8. Which products and subcategories sell best, and which products are about to run out of stock?
 
 ## 3. Project structure
 
@@ -38,25 +39,27 @@ An online retailer selling across seven Southeast-Asian markets has grown quickl
 ecommerce-customer-analytics/
 ├── data/
 │   ├── raw/ecommerce_orders_raw.csv          # 2,045 rows, includes deliberate quality issues
-│   └── processed/ecommerce_orders_clean.csv  # 1,972 rows × 31 columns after cleaning
+│   ├── raw/products.csv                      # product catalogue: 60 products, fixed price + stock
+│   ├── processed/ecommerce_orders_clean.csv  # 1,995 rows × 34 columns after cleaning
+│   └── processed/products.csv                # validated catalogue loaded by the web app
 ├── notebooks/
 │   └── ecommerce_customer_analytics.ipynb    # main analysis (executed, with outputs)
 ├── src/
-│   ├── generate_dataset.py                   # reproducible synthetic data generator
+│   ├── generate_dataset.py                   # reproducible generator: product catalogue + orders
 │   ├── data_cleaning.py                      # reusable cleaning pipeline + customer table
 │   └── run_pipeline.py                       # one-command: generate -> clean -> execute notebook
 ├── webapp/                                   # Flask + SQLite web app (live dashboard + order management)
 │   ├── app.py                                # routes, validation, CSRF — run: python webapp/app.py
 │   ├── database.py                           # schema (tables, constraints, view, triggers) + CSV loader
 │   ├── analytics.py                          # every dashboard number, computed with SQL
-│   ├── templates/                            # Jinja pages: dashboard, orders, customers, forms
+│   ├── templates/                            # Jinja pages: dashboard, orders, customers, products, forms
 │   └── static/                               # CSS, JS, vendored Chart.js (works offline)
 ├── tests/
-│   ├── test_data_cleaning.py                 # pytest suite for the cleaning pipeline (14 tests)
-│   └── test_webapp.py                        # database, API, CRUD, validation & security tests (26 tests)
+│   ├── test_data_cleaning.py                 # pytest suite for the cleaning pipeline (16 tests)
+│   └── test_webapp.py                        # database, API, CRUD, stock, validation & security tests (42 tests)
 ├── .github/workflows/ci.yml                  # GitHub Actions: tests + pipeline on every push
 ├── outputs/
-│   └── figures/                              # 9 charts exported from the notebook
+│   └── figures/                              # 10 charts exported from the notebook
 ├── docs/
 │   ├── data_dictionary.md                    # field-by-field data dictionary
 │   ├── project_report.docx                   # written report
@@ -98,7 +101,7 @@ python src/run_pipeline.py
 # Run the web app (Flask + SQLite) — see section 6
 python webapp/app.py
 
-# Run the unit tests (40 tests: pipeline + web app)
+# Run the unit tests (58 tests: pipeline + web app)
 pytest -q
 ```
 
@@ -106,7 +109,7 @@ The notebook runs top-to-bottom in ~15 seconds (`Kernel → Restart & Run All`) 
 
 ## 6. Web app — live dashboard on a SQLite database
 
-The analysis also runs as a full web application: the dashboard reads **live from a SQLite database**, and orders and customers can be added, edited and deleted in the browser — every change shows up on the dashboard within seconds.
+The analysis also runs as a full web application: the dashboard reads **live from a SQLite database**, and orders, customers and products can be added, edited and deleted in the browser — every change shows up on the dashboard within seconds.
 
 ```bash
 pip install -r requirements.txt
@@ -117,18 +120,19 @@ python webapp/app.py --reset      # rebuild the database from the CSV (undoes al
 
 ```mermaid
 flowchart LR
-    A[raw CSV<br/>2,045 rows] -->|src/data_cleaning.py| B[clean CSV<br/>1,972 rows]
-    B -->|webapp/database.py| C[(SQLite<br/>customers · orders<br/>v_orders view)]
+    A[raw CSVs<br/>2,045 orders · 60 products] -->|src/data_cleaning.py| B[clean CSVs<br/>1,995 orders]
+    B -->|webapp/database.py| C[(SQLite<br/>products · customers · orders<br/>v_orders view · stock triggers)]
     C -->|SQL in analytics.py| D[/api/analytics/]
     D --> E[Dashboard<br/>Chart.js]
-    F[Orders & Customers pages] -->|validated INSERT / UPDATE / DELETE| C
+    F[Orders, Customers & Products pages] -->|validated INSERT / UPDATE / DELETE| C
 ```
 
 | Page | What it does |
 |------|--------------|
-| **Dashboard** `/` | KPI cards with month-on-month change, revenue/orders trend (6M · 12M · all), monthly target gauge (latest month vs. the monthly average + 10%), top-categories donut, a **Southeast Asia map** shaded by net revenue per country, an order-fulfilment funnel (placed → shipped → delivered & kept → reviewed), acquisition channels, recent orders and a recent-activity feed. Country / Segment / Category filters are kept in the URL. Polls a change counter and refreshes itself when the data changes. Light and dark themes. |
+| **Dashboard** `/` | KPI cards with month-on-month change, revenue/orders trend (6M · 12M · all), monthly target gauge (latest month vs. the monthly average + 10%), top-categories donut, a **Southeast Asia map** shaded by net revenue per country, an order-fulfilment funnel (placed → shipped → delivered & kept → reviewed), acquisition channels, recent orders, a recent-activity feed, best-selling products and stock alerts. Country / Segment / Category filters are kept in the URL. Polls a change counter and refreshes itself when the data changes. Light and dark themes. |
 | **Customers & service** `/analytics/customers` | Segments, recency, order-value distribution, country, channel, payment mix and service-quality charts, each with a Chart / Table switch. |
-| **Orders** `/orders` | Search, filter, sort and page through orders; add, edit, delete. The form shows the customer's profile as you type their ID and a live order total. |
+| **Orders** `/orders` | Search, filter, sort and page through orders; add, edit, delete. In the order form you pick a category, then a product: the **price is filled in from the catalogue** (it can't be typed), the stock on hand is shown, and the quantity can't exceed it. |
+| **Products** `/products` | The catalogue: category, subcategory, fixed price, stock on hand (low / out-of-stock badges), units sold and revenue per product. Add products, change prices (applies to new orders only) and restock. A product that appears on orders can't be deleted. |
 | **Customers** `/customers` | Same for customers, with order count and net spend per customer. A customer who still has orders can't be deleted. |
 | **API** | `/api/analytics?country=&segment=&category=` (all dashboard numbers as JSON), `/api/version`, `/api/customers/<id>` |
 
@@ -136,54 +140,57 @@ flowchart LR
 
 | Object | Purpose |
 |--------|---------|
-| `customers` | One row per customer (normalised out of the order rows). 69 customers had conflicting ages/cities across orders because of per-order imputation; the loader keeps each customer's most frequent value. |
-| `orders` | One row per order, `FOREIGN KEY → customers` with `ON DELETE RESTRICT`. |
-| `CHECK` constraints | The cleaning rules from notebook §8 enforced by the database itself — quantity 1–50, price > 0, discount 0–100 %, rating 1–5, delivery 0–30 days, valid categories, and "a cancelled order has no delivery time or review". |
+| `products` | The catalogue: one row per product with its category, subcategory, fixed `unit_price`, `stock_on_hand` (`CHECK ≥ 0`) and `reorder_level`. |
+| `customers` | One row per customer (normalised out of the order rows). 71 customers had conflicting ages/cities across orders because of per-order imputation; the loader keeps each customer's most frequent value. |
+| `orders` | One row per order, `FOREIGN KEY → customers` and `→ products`, both `ON DELETE RESTRICT`. `unit_price` stores the list price at the time of the order. |
+| Stock triggers | A delivered order takes its quantity out of `stock_on_hand`; cancelling, returning or deleting it puts the units back. If an order would push stock below zero, the `CHECK` fails and the database refuses it — even if the form were bypassed. |
+| `CHECK` constraints | The cleaning rules from notebook §8 enforced by the database itself — quantity 1–50, price > 0, discount 0–100 %, rating 1–5, delivery 0–30 days, valid categories and products, and "a cancelled order has no delivery time or review". |
 | `v_orders` view | `total_amount`, `net_revenue`, `age_group`, `order_month`, `customer_tenure_days` computed on the fly, so derived values can never go stale after an edit. |
 | `meta` + triggers | A change counter bumped on every insert/update/delete; the dashboard polls it to auto-refresh. |
 
-Validation happens twice — in Python with friendly field-level messages, and again by the database constraints — and every form is CSRF-protected. Loading the 1,972 cleaned orders reproduces the notebook exactly ($227,155 net revenue, $136.47 average order, r = −0.38), which `tests/test_webapp.py` checks.
+Validation happens twice — in Python with friendly field-level messages, and again by the database constraints — and every form is CSRF-protected. Loading the 1,995 cleaned orders reproduces the notebook exactly ($148,675 net revenue, $91.90 average order, r = −0.41), which `tests/test_webapp.py` checks.
 
 ## 7. Methodology (mapped to the notebook sections)
 
 | Step | Notebook section | What is done |
 |------|------------------|--------------|
 | Load & explore | §5 | `head`, `shape`, `columns`, `info`, `describe` |
-| Missing values | §6 | `isnull()` audit; median (age), mode (payment), mode-within-country (city), row removal (price); structural NaNs kept |
+| Missing values | §6 | `isnull()` audit; median (age), mode (payment), mode-within-country (city), catalogue look-up (price); structural NaNs kept |
 | Duplicates | §7 | 45 exact duplicates removed → 2,000 rows |
-| Validation | §8 | Type checks, category domains, numeric range rules (age 18–100, rating 1–5, discount 0–100 …), logical rule order ≥ sign-up; 28 rows dropped → 1,972 rows |
+| Validation | §8 | Type checks, category domains, numeric range rules (age 18–100, rating 1–5, discount 0–100 …), logical rule order ≥ sign-up, every order priced at its product's list price; 5 rows dropped, 23 prices restored → 1,995 rows |
 | Derived columns | §9 | `total_amount`, `net_revenue`, `customer_tenure_days`, `age_group`, `order_value_tier`, flags … (11 columns) |
-| Pandas analysis | §10 | filtering, sorting, `groupby`/`agg`, `pivot_table`, `crosstab`, customer-level RFM table |
+| Pandas analysis | §10 | filtering, sorting, `groupby`/`agg`, `pivot_table`, `crosstab`, customer-level RFM table, product & subcategory ranking, stock cover |
 | Statistics | §11 | mean/median/mode/min/max/std/var, skewness, correlation matrix, t-test, chi-square, ANOVA |
-| Visualisation | §12 | 9 charts (bar, line, histogram, pie, scatter, box, grouped bar, heatmap, stacked bar), each with interpretation |
-| Findings | §13 | 7 findings, 7 recommendations, limitations |
+| Visualisation | §12 | 10 charts (bar, line, histogram, pie, scatter, box, grouped bar, heatmap, stacked bar, horizontal bar), each with interpretation |
+| Findings | §13 | 8 findings, 7 recommendations, limitations |
 
 ## 8. Key findings
 
-1. **Revenue is concentrated in Electronics** — 54 % of net revenue from 24 % of orders; Electronics + Home & Kitchen + Fashion ≈ 80 %.
-2. **VIP customers drive value through frequency** — 23 % of customers, 40 % of revenue, 4.8 orders each vs 1.6 for New; order value per order is *not* significantly different (p = 0.60).
-3. **Slow delivery hurts ratings** — 3.96 ★ for 1–3-day delivery vs 3.02 ★ for 10+ days; r = −0.38, p < 0.001.
-4. **17 % of orders produce no revenue** — 10.8 % returned + 6.6 % cancelled; Fashion has the highest return rate (13.6 %).
-5. **Strong year-end seasonality** — December 2024 ≈ 2.4× the Q1 monthly average; January revenue −63 % month-on-month.
-6. **Good retention, but many dormant customers** — 67 % repeat rate, top 20 % of customers = 57 % of revenue, yet 45 % inactive > 180 days.
-7. **Referral brings the least valuable customers** ($237 per customer vs $325 for Email).
+1. **Revenue is concentrated in Electronics and in a few products** — 47 % of net revenue from 24 % of orders; Electronics + Home & Kitchen + Fashion ≈ 77 %. The top 10 of 60 products earn 51 %; the Smartphone A54 alone 11 %.
+2. **VIP customers drive value through frequency** — 23 % of customers, 40 % of revenue, 4.9 orders each vs 1.6 for New; order value per order is *not* significantly different (p = 0.26).
+3. **Slow delivery hurts ratings** — 3.97 ★ for 1–3-day delivery vs 3.00 ★ for 10+ days; r = −0.41, p < 0.001.
+4. **18 % of orders produce no revenue** — 11.2 % returned + 6.6 % cancelled; Fashion has the highest return rate (15.7 %), and return rates differ significantly by category (χ² p = 0.015).
+5. **Strong year-end seasonality** — December 2024 ≈ 2.4× the Q1 monthly average; January revenue −45 % month-on-month.
+6. **Good retention, but many dormant customers** — 67 % repeat rate, top 20 % of customers = 59 % of revenue, yet 45 % inactive > 180 days.
+7. **Referral brings the least valuable customers** ($145 per customer vs $246 for Email).
+8. **Stock gaps are costing sales** — 2 products are sold out (Noise-Cancelling Headphones ≈ $775 of revenue a month) and 4 more are at or below their reorder level.
 
 ## 9. Recommendations
 
 1. Set a ≤ 5-day delivery SLA in the top three markets and show delivery estimates at checkout.
 2. Launch a second-purchase voucher programme for New customers and a win-back campaign for the 45 % dormant customers.
-3. Cut Fashion / Sports returns with size guides, fit reviews and return-reason tracking.
-4. Diversify revenue with cross-sell bundles and Beauty promotions in high-AOV markets.
+3. Cut Fashion returns with size guides, fit reviews and return-reason tracking, starting with the most-returned products.
+4. Diversify revenue by cross-selling Home & Kitchen appliances and Sports bundles to Electronics buyers.
 5. Plan inventory & ad budget around the Nov–Dec peak and run a January promotion to soften the trough.
-6. Rebalance acquisition spend from Referral toward Email / Social; pay referral rewards only after the second order.
-7. Cap VIP discounts at ~10 % and replace with non-price perks such as free express shipping.
+6. Rebalance acquisition spend from Referral toward Email / Organic Search; pay referral rewards only after the second order.
+7. Reorder from the stock-cover table: restock sold-out products now and reorder anything under 2 months of cover (the web app's Products page flags these).
 
 ## 10. Sample visualisations
 
 | | |
 |---|---|
 | ![](outputs/figures/01_revenue_by_category.png) | ![](outputs/figures/02_monthly_trend.png) |
-| ![](outputs/figures/05_delivery_vs_rating_scatter.png) | ![](outputs/figures/06_order_value_by_segment_boxplot.png) |
+| ![](outputs/figures/05_delivery_vs_rating_scatter.png) | ![](outputs/figures/10_top_products.png) |
 
 ## 11. Live demo script (≈ 10 minutes)
 

@@ -1,0 +1,61 @@
+product_id,product_name,category,subcategory,unit_price,stock_on_hand,reorder_level
+P001,Smartphone A54 128GB,Electronics,Phones & Tablets,349.0,30,10
+P002,10-inch Android Tablet,Electronics,Phones & Tablets,229.0,73,10
+P003,Wireless Earbuds,Electronics,Audio,59.0,139,10
+P004,Noise-Cancelling Headphones,Electronics,Audio,149.0,0,10
+P005,Bluetooth Speaker,Electronics,Audio,45.0,31,10
+P006,14-inch Laptop,Electronics,Computers,649.0,77,10
+P007,Mechanical Keyboard,Electronics,Computers,79.0,95,10
+P008,Wireless Mouse,Electronics,Computers,19.0,109,10
+P009,Smartwatch,Electronics,Accessories,129.0,146,10
+P010,65W USB-C Charger,Electronics,Accessories,29.0,113,10
+P011,20000mAh Power Bank,Electronics,Accessories,35.0,105,10
+P012,Cotton Crew T-Shirt,Fashion,Men's Clothing,15.0,26,10
+P013,Slim-Fit Denim Jeans,Fashion,Men's Clothing,45.0,89,10
+P014,Leather Belt,Fashion,Men's Clothing,25.0,129,10
+P015,Floral Summer Dress,Fashion,Women's Clothing,39.0,66,10
+P016,Linen Blouse,Fashion,Women's Clothing,29.0,159,10
+P017,Running Sneakers,Fashion,Footwear,79.0,9,10
+P018,Casual Sandals,Fashion,Footwear,24.0,93,10
+P019,Canvas Backpack,Fashion,Bags & Accessories,42.0,46,10
+P020,Polarised Sunglasses,Fashion,Bags & Accessories,35.0,40,10
+P021,Leather Wallet,Fashion,Bags & Accessories,32.0,59,10
+P022,Non-Stick Frying Pan,Home & Kitchen,Cookware,34.0,145,10
+P023,Stainless Steel Pot Set,Home & Kitchen,Cookware,89.0,32,10
+P024,4L Air Fryer,Home & Kitchen,Small Appliances,119.0,109,10
+P025,Electric Kettle,Home & Kitchen,Small Appliances,29.0,30,10
+P026,Personal Blender,Home & Kitchen,Small Appliances,59.0,75,10
+P027,Rice Cooker 1.8L,Home & Kitchen,Small Appliances,69.0,5,10
+P028,LED Table Lamp,Home & Kitchen,Home Decor,39.0,0,10
+P029,Cushion Cover Set,Home & Kitchen,Home Decor,22.0,56,10
+P030,Glass Food Container Set,Home & Kitchen,Storage,24.0,151,10
+P031,Sunscreen SPF50,Beauty,Skincare,14.0,65,10
+P032,Daily Moisturiser,Beauty,Skincare,22.0,101,10
+P033,Vitamin C Serum,Beauty,Skincare,28.0,136,10
+P034,Matte Lipstick,Beauty,Makeup,15.0,3,10
+P035,Liquid Foundation,Beauty,Makeup,26.0,70,10
+P036,Herbal Shampoo,Beauty,Hair Care,9.0,44,10
+P037,Ionic Hair Dryer,Beauty,Hair Care,49.0,112,10
+P038,Eau de Parfum 50ml,Beauty,Fragrance,65.0,131,10
+P039,Yoga Mat,Sports,Fitness,25.0,118,10
+P040,Adjustable Dumbbells 10kg,Sports,Fitness,59.0,30,10
+P041,Resistance Band Set,Sports,Fitness,15.0,52,10
+P042,2-Person Camping Tent,Sports,Outdoor,129.0,139,10
+P043,Hiking Backpack 40L,Sports,Outdoor,79.0,103,10
+P044,Size 5 Football,Sports,Team Sports,22.0,78,10
+P045,Badminton Racket,Sports,Team Sports,35.0,48,10
+P046,Cycling Helmet,Sports,Cycling,45.0,29,10
+P047,Manga Volume 1,Books,Comics & Manga,9.0,52,10
+P048,Superhero Graphic Novel,Books,Comics & Manga,22.0,38,10
+P049,Python Programming for Beginners,Books,Programming,39.0,71,10
+P050,Data Science Handbook,Books,Programming,45.0,138,10
+P051,Mystery Novel,Books,Fiction,14.0,75,10
+P052,Fantasy Novel,Books,Fiction,16.0,103,10
+P053,Productivity Habits,Books,Self-Help,15.0,153,10
+P054,Illustrated Picture Book,Books,Children's,8.0,142,10
+P055,Building Blocks Set 500pc,Toys,Building Sets,49.0,150,10
+P056,Plush Teddy Bear,Toys,Plush,18.0,116,10
+P057,RC Off-Road Car,Toys,Remote Control,39.0,84,10
+P058,1000-Piece Jigsaw Puzzle,Toys,Games & Puzzles,19.0,138,10
+P059,Family Board Game,Toys,Games & Puzzles,29.0,72,10
+P060,Art & Craft Kit,Toys,Arts & Crafts,15.0,6,10

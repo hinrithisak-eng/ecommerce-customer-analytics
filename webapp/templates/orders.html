@@ -12,7 +12,7 @@
 </header>
 
 <form class="filterbar" method="get" action="{{ url_for('orders') }}" role="search">
-  <label class="search">{{ icon('search') }}<input type="search" name="q" value="{{ args.get('q','') }}" placeholder="Search order, customer or city" aria-label="Search orders"></label>
+  <label class="search">{{ icon('search') }}<input type="search" name="q" value="{{ args.get('q','') }}" placeholder="Search order, customer, product or city" aria-label="Search orders"></label>
   <select name="status" aria-label="Status" class="{{ 'is-set' if args.get('status') }}" onchange="this.form.submit()"><option value="">All statuses</option>{% for s in C.STATUSES %}<option {{ 'selected' if args.get('status')==s }}>{{ s }}</option>{% endfor %}</select>
   <select name="country" aria-label="Country" class="{{ 'is-set' if args.get('country') }}" onchange="this.form.submit()"><option value="">All countries</option>{% for c in opts.countries %}<option {{ 'selected' if args.get('country')==c }}>{{ c }}</option>{% endfor %}</select>
   <select name="category" aria-label="Category" class="{{ 'is-set' if args.get('category') }}" onchange="this.form.submit()"><option value="">All categories</option>{% for c in opts.categories %}<option {{ 'selected' if args.get('category')==c }}>{{ c }}</option>{% endfor %}</select>
@@ -27,7 +27,7 @@
     {{ sort_th('orders', args, 'order_date', 'Date', sort, dir) }}
     {{ sort_th('orders', args, 'customer_id', 'Customer', sort, dir) }}
     {{ sort_th('orders', args, 'country', 'Country', sort, dir) }}
-    {{ sort_th('orders', args, 'product_category', 'Category', sort, dir) }}
+    {{ sort_th('orders', args, 'product_name', 'Product', sort, dir) }}
     <th class="r">Qty</th><th class="r">Unit price</th><th class="r">Discount</th>
     {{ sort_th('orders', args, 'total_amount', 'Total', sort, dir, 'r') }}
     {{ sort_th('orders', args, 'order_status', 'Status', sort, dir) }}
@@ -40,7 +40,7 @@
       <td class="num">{{ r.order_date }}</td>
       <td><a href="{{ url_for('customers', q=r.customer_id) }}">{{ r.customer_id }}</a></td>
       <td>{{ r.country }}</td>
-      <td>{{ r.product_category }}</td>
+      <td><div class="prod-cell"><span>{{ r.product_name }}</span><span class="muted">{{ r.product_category }}</span></div></td>
       <td class="r">{{ r.quantity }}</td>
       <td class="r">{{ r.unit_price | money }}</td>
       <td class="r">{% if r.discount_pct %}{{ '%g' % r.discount_pct }}%{% else %}<span class="muted">–</span>{% endif %}</td>

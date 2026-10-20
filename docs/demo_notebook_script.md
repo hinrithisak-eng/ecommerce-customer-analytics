@@ -38,10 +38,10 @@ number or output to draw attention to). Target length ~11 minutes; the ⏱ tags 
 > order history. It can't say which products or customers drive revenue, whether customers come back,
 > or why some leave bad reviews.
 > I set three measurable objectives — identify the revenue drivers, measure retention, and diagnose
-> service quality — and broke them into seven analytical questions, each tied to a specific Pandas
+> service quality — and broke them into eight analytical questions, each tied to a specific Pandas
 > technique. Everything after this answers one of those questions."
 
-**POINT AT:** the O1–O3 objectives table and the Q1–Q7 questions table.
+**POINT AT:** the O1–O3 objectives table and the Q1–Q8 questions table.
 
 ---
 
@@ -52,8 +52,9 @@ number or output to draw attention to). Target length ~11 minutes; the ⏱ tags 
 **SAY:**
 > "The dataset is synthetic but realistic — I wrote a generator so it's fully reproducible with a
 > fixed seed, and so I could inject known data-quality problems on purpose. That lets me prove the
-> cleaning pipeline actually catches them. There are 20 original columns; the data dictionary
-> documents every field, its type, and an example."
+> cleaning pipeline actually catches them. It has two files: a **product catalogue** — 60 products in 30
+> subcategories, each with a fixed price and stock — and 2,045 orders of those products with 22 columns.
+> The data dictionary documents every field, its type, and an example."
 
 **POINT AT:** the "deliberately injects … missing values, 45 duplicates, out-of-range numbers" line.
 
@@ -71,8 +72,8 @@ number or output to draw attention to). Target length ~11 minutes; the ⏱ tags 
 
 ## §5 · Load & explore ⏱ 1.5 min  ← the "here's what's wrong" moment
 
-**DO:** Run cells [5]–[9] one at a time (Shift+Enter through `head`, `shape`, `info`, `describe`,
-`describe(include="object")`).
+**DO:** Run cells [5]–[10] one at a time (Shift+Enter through `head`, `shape`, `info`, `describe`,
+`describe(include="object")` and the product catalogue).
 
 **SAY (on `df.describe()`, cell [8]):**
 > "This is the raw data loaded straight from CSV — 2,045 rows. And look at the describe output:
@@ -83,31 +84,38 @@ number or output to draw attention to). Target length ~11 minutes; the ⏱ tags 
 **POINT AT:** the `min` and `max` rows — age −5 / 210, review_rating 0 / 7, discount_pct 150.
 
 **SAY (on `df.describe(include="object")`, cell [9]):**
-> "And the text columns show more than the seven categories I expect — that's inconsistent
-> capitalisation and whitespace I'll standardise in a moment."
+> "And the text columns show 19 categories where I expect seven, and 69 product names for 60 products —
+> inconsistent capitalisation and whitespace I'll standardise in a moment."
+
+**SAY (on the catalogue, cell [10]):**
+> "The orders point into a **product catalogue**: 60 products in 7 categories and 30 subcategories —
+> Books, for example, splits into Comics & Manga, Programming, Fiction, Self-Help and Children's. Every
+> product has **one fixed list price** and a stock level. That catalogue becomes the source of truth for
+> prices in cleaning."
 
 ---
 
 ## §6 · Missing values ⏱ 1 min
 
-**DO:** Run cells [12]–[13].
+**DO:** Run cells [13]–[14].
 
 **SAY:**
 > "First I audit what's missing. The key judgement here: not every blank is an error. A missing
 > **review rating** means the customer chose not to review — that's information, so I keep it as NaN.
 > A missing **delivery date** on a cancelled order is expected. But a missing **age** or **price** is
 > a genuine gap. So I impute age with the **median** because it's robust to those outlier ages we just
-> saw, payment method with the **mode**, city with the most common city **within the same country**,
-> and I **drop** rows with no price because you can't invent revenue."
+> saw, payment method with the **mode**, city with the most common city **within the same country** —
+> and a missing **price** isn't a guess at all: every product has one list price, so I look it up in the
+> catalogue."
 
-**POINT AT:** the crosstab (cell [13]) showing ratings are missing for 100 % of cancelled orders —
+**POINT AT:** the crosstab (cell [14]) showing ratings are missing for 100 % of cancelled orders —
 that's the proof the blanks are structural, not random.
 
 ---
 
 ## §7 · Duplicates ⏱ 45 sec
 
-**DO:** Run cells [16]–[18].
+**DO:** Run cells [17]–[19].
 
 **SAY:**
 > "Before checking for duplicates I standardise the text — strip whitespace, fix capitalisation — so
@@ -121,21 +129,23 @@ that's the proof the blanks are structural, not random.
 
 ## §8 · Validation ⏱ 1 min
 
-**DO:** Run cells [21]–[23].
+**DO:** Run cells [22]–[24].
 
 **SAY:**
 > "Now I validate against explicit business rules — age 18 to 100, rating 1 to 5, discount 0 to 100,
 > and so on. The report shows **25 values out of range**. Because those are physically impossible, I
-> treat them as missing, then drop the 28 rows that have no usable quantity or price. That leaves
-> **1,972 clean rows**. From here, the only NaNs left are the deliberate structural ones."
+> treat them as missing and drop the **5 rows** with no usable quantity. I also check every order against
+> the catalogue: **23 prices** were missing or wrong, so they're restored from the list price instead of
+> dropping the order. That leaves **1,995 clean rows**. From here, the only NaNs left are the deliberate
+> structural ones."
 
-**POINT AT:** the validation report table (`invalid_rows` column) and the final "1,972 rows".
+**POINT AT:** the validation report table (`invalid_rows` column), "Prices restored from the catalogue: 23" and "1,995 rows".
 
 ---
 
 ## §9 · Derived columns ⏱ 45 sec
 
-**DO:** Run cells [26]–[27].
+**DO:** Run cells [27]–[28].
 
 **SAY:**
 > "I engineer eleven new columns. The two that matter most: `total_amount` — what the customer paid,
@@ -153,24 +163,24 @@ that's the proof the blanks are structural, not random.
 Run these live so the audience sees Pandas work. Don't read all eight — show **10.2, 10.6, 10.3**
 and mention the rest exist.
 
-**§10.1 KPIs (cell [31])** — run it.
-> "A quick overview: 1,972 orders, 721 customers, about $227k in net revenue. Note the average order
-> is $136 but the median is $76 — that gap tells me the data is skewed, which I come back to."
+**§10.1 KPIs (cell [32])** — run it.
+> "A quick overview: 1,995 orders, 723 customers, about $149k in net revenue. Note the average order
+> is $92 but the median is $50 — that gap tells me the data is skewed, which I come back to."
 
-**§10.2 Q1 category (cells [34]–[35])** — run it. *This is your strongest headline.*
-> "Grouping revenue by category: **Electronics is 54 percent of revenue from only 24 percent of
-> orders**. The top three categories make 80 percent. But sorting by return rate, **Fashion is returned
-> most — 13.6 percent** — so that's where the operational problem is."
+**§10.2 Q1 category (cells [35]–[36])** — run it. *This is your strongest headline.*
+> "Grouping revenue by category: **Electronics is 47 percent of revenue from only 24 percent of
+> orders**. The top three categories make 77 percent. But sorting by return rate, **Fashion is returned
+> most — 15.7 percent** — so that's where the operational problem is."
 
-**POINT AT:** the `revenue_share` column (Electronics 0.54) and the return-rate sort.
+**POINT AT:** the `revenue_share` column (Electronics 0.47) and the return-rate sort.
 
-**§10.3 Q2 segments (cell [38])** — run it.
-> "VIP customers are 23 percent of people but 40 percent of revenue — because they order **4.8 times**
-> each versus 1.6 for new customers. Their average order is the same size, though. So loyalty is about
+**§10.3 Q2 segments (cell [39])** — run it.
+> "VIP customers are 23 percent of people but 40 percent of revenue — because they order **4.9 times**
+> each versus 1.6 for new customers. Their average order is no bigger, though. So loyalty is about
 > frequency, not bigger baskets — I test that statistically in a second."
 
-**§10.6 Q5 delivery vs rating (cells [50]–[51])** — run it.
-> "Binning by delivery time: ratings fall from **3.96 stars at 1–3 days to 3.02 at 10+ days**. That's
+**§10.6 Q5 delivery vs rating (cells [51]–[52])** — run it.
+> "Binning by delivery time: ratings fall from **3.97 stars at 1–3 days to 3.00 at 10+ days**. That's
 > almost a full star. Delivery speed is the clearest driver of satisfaction in the data."
 
 **SAY (wave at the rest):**
@@ -178,34 +188,40 @@ and mention the rest exist.
 > channels, Q6 builds a customer-level table, and Q7 uses `crosstab` for payment habits by age. Each
 > has a written interpretation beneath it."
 
+**§10.9 Q8 products & stock (cells [65]–[67])** — run it.
+> "And down at product level: the **Smartphone A54 alone is 11 percent of revenue**, and the top 10 of
+> 60 products make half. The stock-cover table divides stock on hand by monthly sales — **two products
+> are already sold out**, including the Noise-Cancelling Headphones, which sell about $775 a month."
+
 ---
 
 ## §11 · Statistical analysis ⏱ 1 min  ← proves rigour
 
-**DO:** Run cells [64], [66], [67].
+**DO:** Run cells [70], [72], [73].
 
 **SAY:**
 > "This is where I move from description to statistics. Descriptive stats confirm the skew — mean well
 > above median. The correlation matrix and significance tests are the important part:
-> delivery time versus rating gives **r = −0.38 with a p-value near zero** — a real, significant effect.
-> The t-test comparing VIP and new-customer order value comes back **not significant, p = 0.60** — which
+> delivery time versus rating gives **r = −0.41 with a p-value near zero** — a real, significant effect.
+> The t-test comparing VIP and new-customer order value comes back **not significant, p = 0.26** — which
 > confirms what I said earlier: VIPs don't spend more per order, they just order more often. And the
-> chi-square on returns by category is **not significant**, so I'm careful to call that one indicative."
+> chi-square on returns by category **is significant, p = 0.015**, so Fashion's high return rate isn't chance."
 
-**POINT AT:** the `r = −0.38` / `p` line and the `p = 0.60` t-test line.
+**POINT AT:** the `r = −0.406` / `p` line and the `p = 0.255` t-test line.
 
-> Mentioning a result that is *not* significant, and adjusting your claim because of it, is exactly
+> Mentioning a result that is *not* significant (the VIP t-test), and adjusting your claim because of it, is exactly
 > what examiners look for. Say it with confidence — it shows you understand the stats, not just the code.
 
 ---
 
 ## §12 · Visualisations ⏱ 1 min  (already rendered — scroll, don't re-run each)
 
-**DO:** Scroll through the nine charts. Pause on **Chart 1** (category revenue), **Chart 5**
-(delivery-vs-rating scatter) and **Chart 6** (order value by segment box plot).
+**DO:** Scroll through the ten charts. Pause on **Chart 1** (category revenue), **Chart 5**
+(delivery-vs-rating scatter), **Chart 6** (order value by segment box plot) and **Chart 10** (top products).
 
 **SAY:**
-> "Nine charts — bar, line, histogram, pie, scatter, box plot, grouped bar, heatmap and stacked bar —
+> "Ten charts — bar, line, histogram, pie, scatter, box plot, grouped bar, heatmap, stacked bar and a
+> top-products ranking —
 > each with a title, labelled axes, and an interpretation written underneath; I never show a chart
 > without saying what it means. The scatter here visualises that delivery-versus-rating correlation,
 > and the box plot shows the three segments' order values overlapping almost entirely — the visual
@@ -220,11 +236,11 @@ and mention the rest exist.
 **DO:** Scroll through the findings, recommendations, and limitations tables.
 
 **SAY:**
-> "I close with seven findings, each backed by a number, and seven recommendations, each tied to a
+> "I close with eight findings, each backed by a number, and seven recommendations, each tied to a
 > finding and a metric to track — for example, a 5-day delivery SLA to lift the average rating, and a
-> second-purchase programme for the 45 percent of customers who've gone dormant. And I'm honest about
-> limitations: the data is synthetic, there's no profit margin, and the category return differences
-> weren't statistically significant."
+> second-purchase programme for the 45 percent of customers who've gone dormant, and reordering the
+> products that are sold out. And I'm honest about limitations: the data is synthetic, there's no profit
+> margin, and prices are fixed for the whole period."
 
 ---
 
@@ -236,19 +252,23 @@ right = `http://127.0.0.1:5000/orders/new` (New order).
 
 **SAY (left window, Dashboard):**
 > "Everything you just saw in the notebook now runs as a web app on a real database. The cleaned CSV is
-> loaded into SQLite — customers and orders as two linked tables — and every number here is a SQL query
-> against it. 1,972 orders, $227,155 of net revenue — the same figures as the notebook."
+> loaded into SQLite — products, customers and orders as three linked tables — and every number here is a
+> SQL query against it. 1,995 orders, $148,675 of net revenue — the same figures as the notebook."
 
 **DO:** Hover **Cambodia** on the Southeast Asia map, then change **Country → Cambodia**, then **Clear**.
-> "Our market is Southeast Asia, so revenue is mapped by country — Cambodia, Thailand and Vietnam bring in about 71 percent."
+> "Our market is Southeast Asia, so revenue is mapped by country — Cambodia, Vietnam and Thailand bring in about 69 percent."
 > "Filters run new SQL queries — the KPIs and charts recompute live."
 
-**DO (right window):** type `C1122` in Customer ID — the customer details appear under the field. Fill in:
-Electronics · quantity 3 · price 299.99 · discount 5 · E-Wallet · delivery 2 days · rating 5.
-Point at the **Summary** panel on the right: the total ($854.97) updates as you type. Click **Create order**.
+**DO (right window):** type `C1122` in Customer ID — the customer details appear under the field. Choose
+Category **Books** → Product **Python Programming for Beginners**: the price **$39.00** fills in by itself and
+the stock shows "71 in stock". Type quantity **999** first — it turns red: "Only 71 in stock". Then set
+quantity 3 · discount 0 · E-Wallet · delivery 2 days · rating 5. The **Summary** shows $117.00. Click **Create order**.
+> "I never type a price — it comes from the catalogue — and I can't sell more than we have. The database
+> enforces that too: stock has a CHECK constraint, and a trigger takes the 3 units out of stock."
 
 **SAY (look at the left window — within a few seconds it refreshes by itself; the changed KPIs briefly highlight):**
-> "And the dashboard picked it up on its own — orders went from 1,972 to 1,973 and revenue up by $855.
+> "And the dashboard picked it up on its own — orders went from 1,995 to 1,996 and revenue up by $117.
+> On **Products**, that book now shows 68 in stock.
 > The database bumps a change counter on every write, and the dashboard polls it."
 
 **DO (right window):** click **New order** again, type customer `C9999`, quantity `0`, status **Cancelled**,
@@ -257,16 +277,17 @@ and submit.
 > impossible quantity, a cancelled order can't have a delivery time. And the database enforces the
 > same rules a second time with CHECK constraints, so bad data can't get in even if the form were bypassed."
 
-**Optional (if time):** on **Customers**, try to delete `C1122` →
+**Optional (if time):** open **Products** and click the red **6 low** badge in the sidebar — the stock alerts;
+or on **Customers**, try to delete `C1122` →
 > "Blocked — this customer has orders, and the foreign key protects that link."
 
 **Closing line:**
 > "So: a reproducible pipeline that cleans messy data, answers the business questions with Pandas and
-> statistics, and serves the results from a database as a live web app — with 40 automated tests and CI
+> statistics, and serves the results from a database as a live web app — with 58 automated tests and CI
 > checking all of it on every push. Happy to take questions."
 
 **After the demo:** click **Reset data** at the bottom of the sidebar (or rerun `python webapp/app.py --reset`)
-to restore the original 1,972 orders.
+to restore the original 1,995 orders and stock levels.
 
 > **Fallback:** if the server won't start, open `docs/dashboard.html` — the same charts with filters,
 > no Python needed. Say: *"here's the offline version of the same dashboard."*
@@ -284,11 +305,14 @@ to restore the original 1,972 orders.
 ## Likely questions (quick answers)
 
 - **Why synthetic data?** Reproducible with a fixed seed, and it let me inject known errors so I can
-  prove the pipeline catches all of them — that's what the 14 unit tests assert.
+  prove the pipeline catches all of them — that's what the 16 cleaning tests assert.
 - **Why keep missing review ratings instead of imputing?** A missing review is information (the
   customer chose not to review); imputing would invent opinions and bias the average upward.
-- **Why is the chi-square not significant?** Sample size — 1,972 orders across 7 categories. I report
-  the return-rate ranking as indicative and say so in the limitations.
+- **Why is the price fixed per product?** That's how a catalogue works: the order form takes the list
+  price, so staff can't mistype it. Changing a product's price affects new orders only — past orders keep
+  the price they were sold at.
+- **What stops overselling?** The form limits quantity to stock on hand, the server re-checks it, and the
+  database has `CHECK (stock_on_hand >= 0)` with triggers that move stock on every order change.
 - **Why a 180-day churn cut-off?** It's measured from a snapshot at the end of the data window; a
   per-customer definition (recency vs that customer's own typical gap) is a stated next step.
 - **Why SQLite rather than MySQL/PostgreSQL?** It's a real SQL database in a single file — no server to

@@ -10,19 +10,25 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 import data_cleaning as dc  # noqa: E402
-from generate_dataset import generate, inject_quality_issues  # noqa: E402
+from generate_dataset import build_catalogue, generate, inject_quality_issues  # noqa: E402
 
 
 @pytest.fixture(scope="module")
-def raw():
-    return inject_quality_issues(generate(rows=500, seed=1), seed=1)
+def catalogue():
+    return build_catalogue(seed=1)
 
 
 @pytest.fixture(scope="module")
-def clean(raw):
+def raw(catalogue):
+    return inject_quality_issues(generate(rows=500, seed=1, catalogue=catalogue), seed=1)
+
+
+@pytest.fixture(scope="module")
+def clean(raw, catalogue):
     df = dc.standardise_categories(raw)
     df, _ = dc.remove_duplicates(df)
     df, _ = dc.validate_and_fix(df)
+    df, _ = dc.reconcile_with_catalogue(df, catalogue)
     df, _ = dc.impute_missing(df)
     return dc.add_derived_columns(df)
 
@@ -79,3 +85,18 @@ def test_customer_table(clean):
     assert len(cust) == clean["customer_id"].nunique()
     assert cust["total_orders"].sum() == len(clean)
     assert set(cust["churn_risk"].unique()) <= {"Low", "Medium", "High"}
+
+
+def test_catalogue_is_well_formed(catalogue):
+    assert catalogue["product_id"].is_unique
+    assert (catalogue["unit_price"] > 0).all() and (catalogue["stock_on_hand"] >= 0).all()
+    # every category has several products spread over at least two subcategories
+    per_cat = catalogue.groupby("category").agg(products=("product_id", "count"), subs=("subcategory", "nunique"))
+    assert (per_cat["products"] >= 5).all() and (per_cat["subs"] >= 2).all()
+
+
+def test_orders_use_fixed_catalogue_price_and_names(clean, catalogue):
+    ref = catalogue.set_index("product_id")
+    assert (clean["unit_price"] == clean["product_id"].map(ref["unit_price"])).all()
+    assert (clean["product_name"] == clean["product_id"].map(ref["product_name"])).all()
+    assert (clean["product_category"] == clean["product_id"].map(ref["category"])).all()
