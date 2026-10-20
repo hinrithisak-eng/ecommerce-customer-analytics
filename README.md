@@ -2,7 +2,7 @@
 
 > An end-to-end data analytics project using **Python & Pandas** to clean, explore, analyse and visualise 18 months of e-commerce order data, and to turn the results into evidence-based business recommendations.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue) ![Pandas](https://img.shields.io/badge/Pandas-2.x-150458) ![License](https://img.shields.io/badge/License-MIT-green) ![CI](https://github.com/hinrithisak-eng/ecommerce-customer-analytics/actions/workflows/ci.yml/badge.svg)
+![Python](https://img.shields.io/badge/Python-3.11%2B-blue) ![Pandas](https://img.shields.io/badge/Pandas-3.x-150458) ![License](https://img.shields.io/badge/License-MIT-green) ![CI](https://github.com/hinrithisak-eng/ecommerce-customer-analytics/actions/workflows/ci.yml/badge.svg)
 
 ---
 
@@ -53,11 +53,13 @@ ecommerce-customer-analytics/
 │   ├── database.py                           # schema (tables, constraints, view, triggers) + CSV loader
 │   ├── analytics.py                          # every dashboard number, computed with SQL
 │   ├── templates/                            # Jinja pages: dashboard, orders, customers, products, forms
-│   └── static/                               # CSS, JS, vendored Chart.js (works offline)
+│   ├── static/                               # CSS, JS, vendored Chart.js (works offline)
+│   └── tools/build_sea_map.py                # one-off script that builds the Southeast Asia map template
 ├── tests/
 │   ├── test_data_cleaning.py                 # pytest suite for the cleaning pipeline (16 tests)
-│   └── test_webapp.py                        # database, API, CRUD, stock, validation & security tests (42 tests)
-├── .github/workflows/ci.yml                  # GitHub Actions: tests + pipeline on every push
+│   └── test_webapp.py                        # database, API, CRUD, stock, validation & security tests (46 tests)
+├── .github/workflows/ci.yml                  # GitHub Actions: tests + pipeline on Python 3.11–3.13 on every push
+├── pytest.ini                                # pytest config (test discovery path)
 ├── outputs/
 │   └── figures/                              # 10 charts exported from the notebook
 ├── docs/
@@ -101,7 +103,7 @@ python src/run_pipeline.py
 # Run the web app (Flask + SQLite) — see section 6
 python webapp/app.py
 
-# Run the unit tests (58 tests: pipeline + web app)
+# Run the unit tests (62 tests: pipeline + web app)
 pytest -q
 ```
 
@@ -117,6 +119,8 @@ python webapp/app.py              # first run builds webapp/instance/ecommerce.d
                                   # then open http://127.0.0.1:5000
 python webapp/app.py --reset      # rebuild the database from the CSV (undoes all demo edits)
 ```
+
+Set a `SECRET_KEY` environment variable (any long random string) to keep open forms valid when the app is restarted; without it a new key is generated on every run.
 
 ```mermaid
 flowchart LR

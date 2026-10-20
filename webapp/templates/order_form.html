@@ -25,7 +25,9 @@
           <datalist id="custList">{% for c in customer_ids %}<option value="{{ c }}">{% endfor %}</datalist>
           {% if errors.get('customer_id') %}<span class="err">{{ errors['customer_id'] }}</span>{% endif %}
         </div>
-        {{ input_field('order_date', 'Order date', v('order_date', latest_date), errors, 'date') }}
+        {{ input_field('order_date', 'Order date', v('order_date', latest_date), errors, 'date',
+                       hint='Data runs to ' ~ latest_date ~ '; a later date moves the dashboard’s “now”.',
+                       attrs='max="' ~ today ~ '"') }}
         <div class="full"><div class="cust-preview" id="custCard">Enter a customer ID, or <a href="{{ url_for('customer_new', then='order') }}">create a customer</a> first.</div></div>
       </div>
     </section>

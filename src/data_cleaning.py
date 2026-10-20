@@ -24,10 +24,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-RAW_PATH = Path("data/raw/ecommerce_orders_raw.csv")
-CLEAN_PATH = Path("data/processed/ecommerce_orders_clean.csv")
-CATALOGUE_PATH = Path("data/raw/products.csv")
-CLEAN_CATALOGUE_PATH = Path("data/processed/products.csv")
+ROOT = Path(__file__).resolve().parents[1]  # project root, so the script runs from any directory
+RAW_PATH = ROOT / "data" / "raw" / "ecommerce_orders_raw.csv"
+CLEAN_PATH = ROOT / "data" / "processed" / "ecommerce_orders_clean.csv"
+CATALOGUE_PATH = ROOT / "data" / "raw" / "products.csv"
+CLEAN_CATALOGUE_PATH = ROOT / "data" / "processed" / "products.csv"
 
 VALID_CATEGORIES = ["Electronics", "Fashion", "Home & Kitchen", "Beauty",
                     "Sports", "Books", "Toys"]
@@ -87,9 +88,8 @@ def reconcile_with_catalogue(df: pd.DataFrame, catalogue: pd.DataFrame) -> tuple
 
 def standardise_categories(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
+    # " Sports ", "beauty", "home & kitchen" -> "Sports", "Beauty", "Home & Kitchen"
     df["product_category"] = df["product_category"].str.strip().str.title()
-    # .title() turns "Home & Kitchen" into "Home & Kitchen" (fine) but check anyway
-    df["product_category"] = df["product_category"].replace({"Home & Kitchen": "Home & Kitchen"})
     df["gender"] = df["gender"].replace({"F": "Female", "M": "Male"})
     return df
 
@@ -173,8 +173,17 @@ def add_derived_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _mode(series: pd.Series):
+    """Most frequent value; ties broken by first occurrence (same rule as webapp/database.py)."""
+    return series.value_counts(sort=False).idxmax()
+
+
 def build_customer_table(df: pd.DataFrame) -> pd.DataFrame:
-    """Aggregate order-level data to one row per customer (RFM-style)."""
+    """Aggregate order-level data to one row per customer (RFM-style).
+
+    Per-order imputation left some customers with different ages across their orders,
+    so customer attributes take each customer's most frequent value.
+    """
     snapshot = df["order_date"].max() + pd.Timedelta(days=1)
     cust = (df.groupby("customer_id")
               .agg(first_order=("order_date", "min"),
@@ -184,11 +193,11 @@ def build_customer_table(df: pd.DataFrame) -> pd.DataFrame:
                    avg_order_value=("total_amount", "mean"),
                    returns=("is_returned", "sum"),
                    avg_rating=("review_rating", "mean"),
-                   segment=("customer_segment", "first"),
-                   country=("country", "first"),
-                   channel=("acquisition_channel", "first"),
-                   age=("age", "first"),
-                   gender=("gender", "first"))
+                   segment=("customer_segment", _mode),
+                   country=("country", _mode),
+                   channel=("acquisition_channel", _mode),
+                   age=("age", _mode),
+                   gender=("gender", _mode))
               .reset_index())
     cust["recency_days"] = (snapshot - cust["last_order"]).dt.days
     cust["return_rate"] = (cust["returns"] / cust["total_orders"]).round(3)

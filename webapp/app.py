@@ -19,6 +19,7 @@ API
 from __future__ import annotations
 
 import math
+import os
 import secrets
 import sqlite3
 from datetime import date, datetime
@@ -96,6 +97,9 @@ def validate_order(form, conn, existing=None) -> tuple[dict, dict]:
         "delivery_days": _num(form, "delivery_days", float, e, "Delivery days", 0, 30, required=False),
         "review_rating": _num(form, "review_rating", int, e, "Review rating", 1, 5, required=False),
     }
+    # The dashboard measures "now" from the latest order, so a mistyped future date would skew it.
+    if "order_date" not in e and d["order_date"] > date.today().isoformat():
+        e["order_date"] = "Order date can't be in the future."
     cust = conn.execute("SELECT signup_date FROM customers WHERE customer_id = ?", (d["customer_id"],)).fetchone()
     if not d["customer_id"]:
         e["customer_id"] = "Customer is required."
@@ -178,6 +182,22 @@ def _db_error(exc: Exception) -> str:
     return f"The database rejected this order: {msg}"
 
 
+def insert_with_new_id(conn: sqlite3.Connection, table: str, column: str, prefix: str, width: int,
+                       d: dict, attempts: int = 3) -> str:
+    """INSERT ``d`` under the next free ID. If another request took that ID between
+    reading it and inserting, the primary key clash is retried with a fresh ID."""
+    for attempt in range(attempts):
+        d[column] = dbm.next_id(conn, table, column, prefix, width)
+        try:
+            with conn:
+                conn.execute(f"INSERT INTO {table} ({', '.join(d)}) VALUES ({', '.join('?' * len(d))})",
+                             list(d.values()))
+            return d[column]
+        except sqlite3.IntegrityError as exc:
+            if f"{table}.{column}" not in str(exc) or attempt == attempts - 1:
+                raise
+
+
 def safe_next(target: str | None, fallback: str) -> str:
     """Only follow same-site relative paths from the `next` field (prevents open redirects)."""
     if target and target.startswith("/") and not target.startswith("//") and "\\" not in target:
@@ -190,7 +210,8 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
     app = Flask(__name__)
     app.config.update(
         DATABASE=str(db_path or dbm.DEFAULT_DB),
-        SECRET_KEY=secrets.token_hex(32),
+        # A fixed SECRET_KEY keeps open forms valid across restarts; otherwise a random one per run.
+        SECRET_KEY=os.environ.get("SECRET_KEY") or secrets.token_hex(32),
         TESTING=testing,
         JSON_SORT_KEYS=False,
     )
@@ -336,10 +357,8 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
         d, errors = validate_order(request.form, conn)
         if errors:
             return _order_form(errors=errors, form=request.form), 422
-        d["order_id"] = dbm.next_id(conn, "orders", "order_id", "ORD", 6)
         try:
-            with conn:
-                conn.execute(f"INSERT INTO orders ({', '.join(d)}) VALUES ({', '.join('?' * len(d))})", list(d.values()))
+            insert_with_new_id(conn, "orders", "order_id", "ORD", 6, d)
         except sqlite3.IntegrityError as exc:
             return _order_form(errors={"_": _db_error(exc)}, form=request.form), 422
         total = conn.execute("SELECT total_amount FROM v_orders WHERE order_id = ?", (d["order_id"],)).fetchone()[0]
@@ -426,9 +445,10 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
         d, errors = validate_product(request.form, conn)
         if errors:
             return _product_form(errors=errors, form=request.form), 422
-        d["product_id"] = dbm.next_id(conn, "products", "product_id", "P", 3)
-        with conn:
-            conn.execute(f"INSERT INTO products ({', '.join(d)}) VALUES ({', '.join('?' * len(d))})", list(d.values()))
+        try:
+            insert_with_new_id(conn, "products", "product_id", "P", 3, d)
+        except sqlite3.IntegrityError as exc:
+            return _product_form(errors={"_": f"The database rejected this product: {exc}"}, form=request.form), 422
         flash(f"Product {d['product_id']} · {d['product_name']} added at ${d['unit_price']:,.2f} with {d['stock_on_hand']} in stock.", "success")
         return redirect(url_for("products", q=d["product_id"]))
 
@@ -505,9 +525,10 @@ def create_app(db_path: str | Path | None = None, testing: bool = False) -> Flas
         d, errors = validate_customer(request.form, conn)
         if errors:
             return _customer_form(errors=errors, form=request.form), 422
-        d["customer_id"] = dbm.next_id(conn, "customers", "customer_id", "C", 4)
-        with conn:
-            conn.execute(f"INSERT INTO customers ({', '.join(d)}) VALUES ({', '.join('?' * len(d))})", list(d.values()))
+        try:
+            insert_with_new_id(conn, "customers", "customer_id", "C", 4, d)
+        except sqlite3.IntegrityError as exc:
+            return _customer_form(errors={"_": f"The database rejected this customer: {exc}"}, form=request.form), 422
         flash(f"Customer {d['customer_id']} created." + (" Add their first order below." if request.form.get("then") == "order" else ""), "success")
         return redirect(url_for("order_new", customer_id=d["customer_id"]) if request.form.get("then") == "order"
                         else url_for("customers", q=d["customer_id"]))

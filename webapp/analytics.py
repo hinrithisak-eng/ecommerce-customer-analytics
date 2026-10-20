@@ -28,6 +28,20 @@ def _where(country: str, segment: str, category: str) -> tuple[str, list]:
     return "WHERE 1=1" + "".join(f" AND {c}" for c in clauses), params
 
 
+def _fill_months(rows: list[dict]) -> list[dict]:
+    """Insert zero rows for months without orders, so the trend shows gaps instead of joining
+    distant months as if they were consecutive."""
+    if not rows:
+        return rows
+    have = {r["m"]: r for r in rows}
+    y, m = map(int, rows[0]["m"].split("-"))
+    out = []
+    while (key := f"{y:04d}-{m:02d}") <= rows[-1]["m"]:
+        out.append(have.get(key, {"m": key, "n": 0, "rev": 0.0}))
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    return out
+
+
 def compute(conn: sqlite3.Connection, country: str = "", segment: str = "", category: str = "") -> dict:
     W, P = _where(country, segment, category)
     q = lambda sql, extra=(): conn.execute(sql.replace("{W}", W), [*P, *extra]).fetchall()
@@ -56,8 +70,8 @@ def compute(conn: sqlite3.Connection, country: str = "", segment: str = "", cate
         """SELECT product_category AS k, SUM(net_revenue) AS rev, COUNT(*) AS n,
                   AVG(order_status='Returned') AS return_rate
            FROM v_orders {W} GROUP BY product_category ORDER BY rev DESC""")]
-    out["monthly"] = [dict(r) for r in q(
-        "SELECT order_month AS m, COUNT(*) AS n, SUM(net_revenue) AS rev FROM v_orders {W} GROUP BY m ORDER BY m")]
+    out["monthly"] = _fill_months([dict(r) for r in q(
+        "SELECT order_month AS m, COUNT(*) AS n, SUM(net_revenue) AS rev FROM v_orders {W} GROUP BY m ORDER BY m")])
     out["histogram"] = {
         "labels": [f"${HIST_EDGES[i]}–{HIST_EDGES[i + 1]}" for i in range(len(HIST_EDGES) - 1)],
         "counts": [sum(HIST_EDGES[i] <= a < HIST_EDGES[i + 1] for a in amounts) for i in range(len(HIST_EDGES) - 1)],

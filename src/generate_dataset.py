@@ -24,6 +24,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+ROOT = Path(__file__).resolve().parents[1]  # project root, so the script runs from any directory
+
 # --------------------------------------------------------------------------- #
 # Configuration
 # --------------------------------------------------------------------------- #
@@ -282,7 +284,7 @@ def main():
     parser = argparse.ArgumentParser(description="Generate synthetic e-commerce dataset.")
     parser.add_argument("--rows", type=int, default=2000, help="number of clean orders to generate")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--out", type=str, default="data/raw/ecommerce_orders_raw.csv")
+    parser.add_argument("--out", type=str, default=str(ROOT / "data" / "raw" / "ecommerce_orders_raw.csv"))
     args = parser.parse_args()
 
     catalogue = build_catalogue(args.seed)

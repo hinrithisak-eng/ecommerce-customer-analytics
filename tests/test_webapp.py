@@ -111,6 +111,39 @@ def test_order_before_signup_is_rejected(client):
     assert r.status_code == 422 and b"signed up" in r.data
 
 
+def test_future_order_date_is_rejected(client):
+    r = client.post("/orders/new", data=order_form(csrf(client), order_date="2062-01-01"))
+    assert r.status_code == 422 and b"in the future" in r.data
+    assert client.get("/api/analytics").get_json()["n"] == 1995
+
+
+def test_monthly_trend_shows_empty_months_as_zero(client):
+    client.post("/orders/new", data=order_form(csrf(client), order_date="2025-09-15"))
+    m = client.get("/api/analytics").get_json()["monthly"]
+    assert [r["m"] for r in m[-4:]] == ["2025-06", "2025-07", "2025-08", "2025-09"]
+    assert m[-3]["n"] == m[-2]["n"] == 0 and m[-1]["n"] == 1
+
+
+def test_fill_months_crosses_year_end():
+    rows = [{"m": "2024-11", "n": 2, "rev": 5.0}, {"m": "2025-02", "n": 1, "rev": 3.0}]
+    assert [r["m"] for r in analytics._fill_months(rows)] == ["2024-11", "2024-12", "2025-01", "2025-02"]
+
+
+def test_new_record_id_clash_is_retried(tmp_path, monkeypatch):
+    from webapp import app as app_module
+    database.build_database(tmp_path / "db.sqlite")
+    conn = database.connect(tmp_path / "db.sqlite")
+    taken = database.next_id(conn, "products", "product_id", "P", 3)
+    ids = iter([taken, None])   # first attempt returns an ID another request already used
+    real = database.next_id
+    with conn:   # another request saves a product under that ID first
+        conn.execute("INSERT INTO products VALUES (?, 'Racer', 'Toys', 'Cars', 9.0, 5, 1)", (taken,))
+    monkeypatch.setattr(app_module.dbm, "next_id", lambda *a: next(ids) or real(*a))
+    d = dict(product_name="Racer 2", category="Toys", subcategory="Cars", unit_price=9.0, stock_on_hand=5, reorder_level=1)
+    new = app_module.insert_with_new_id(conn, "products", "product_id", "P", 3, d)
+    assert new != taken and conn.execute("SELECT product_name FROM products WHERE product_id = ?", (new,)).fetchone()[0] == "Racer 2"
+
+
 def test_edit_to_returned_removes_net_revenue(client):
     t = csrf(client)
     base = client.get("/api/analytics").get_json()["kpis"]["revenue"]
